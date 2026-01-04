@@ -8,6 +8,9 @@ const client = new OpenAI({
     apiKey: NVIDIA_API_KEY
 });
 
+const SUMMARY_THRESHOLD = 20;
+const PLOT_POINT_THRESHOLD = 6;
+
 // ------------------------------
 // Type definitions
 // ------------------------------
@@ -479,19 +482,97 @@ async function insertEphemeralData(chatId: string, data: any) {
             }
         }
     }
+}
 
-    // Insert events
-    if (data.events?.length) {
-        for (const ev of data.events) {
-            try {
-                await addHistoryEvent(chatId, ev.summary);
-            } catch (err) {
-                console.error("Error inserting ephemeral event:", err);
-            }
+// ------------------------------
+// Fetch messages since the last session_history entry
+// ------------------------------
+async function getMessagesSinceLastHistory(chatId: string): Promise<{ role: string; content: string; created_at: string }[]> {
+    try {
+        // Get the latest history timestamp
+        const { data: historyRows, error: historyError } = await supabase
+            .from('session_history')
+            .select('created_at')
+            .eq('chat_id', chatId)
+            .order('created_at', { ascending: false })
+            .limit(1);
+
+        if (historyError) {
+            console.error('Error fetching last session_history:', historyError);
+            return [];
         }
+
+        const lastHistoryTime = historyRows?.[0]?.created_at || null;
+
+        // Fetch messages after last history timestamp
+        const { data: messages, error: messagesError } = await supabase
+            .from('messages')
+            .select('role, content, created_at')
+            .eq('chat_id', chatId)
+            .order('created_at', { ascending: true })
+            .gt(lastHistoryTime ? 'created_at' : 'id', lastHistoryTime ?? '0'); // fallback if no lastHistoryTime
+
+        if (messagesError) {
+            console.error('Error fetching messages since last history:', messagesError);
+            return [];
+        }
+
+        return messages ?? [];
+    } catch (err) {
+        console.error('Unexpected error in getMessagesSinceLastHistory:', err);
+        return [];
     }
 }
 
+// ------------------------------
+// Summarize session history using LLM
+// ------------------------------
+async function summarizeSessionHistory(
+    chatId: string,
+    messagesSinceLastHistory: { role: string; content: string; created_at: string }[]
+) {
+    if (!messagesSinceLastHistory || messagesSinceLastHistory.length === 0) return;
+
+    // Build a text block for the LLM
+    const conversationText = messagesSinceLastHistory
+        .map(m => `${m.role.toUpperCase()}: ${m.content}`)
+        .join('\n');
+
+    const systemPrompt = `
+You are a Game Master assistant.
+Summarize the adventure so far in a concise story summary.
+Output JSON only:
+{
+  "summary": "..."
+}
+`;
+
+    try {
+        const completion = await client.chat.completions.create({
+            model: 'deepseek-ai/deepseek-r1',
+            messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: conversationText }
+            ],
+            temperature: 0,
+            max_tokens: 512
+        });
+
+        const reply = completion.choices[0].message.content ?? '';
+        const jsonMatch = reply.match(/```json\s*([\s\S]*?)\s*```/);
+        const jsonString = jsonMatch ? jsonMatch[1] : reply;
+
+        const parsed = JSON.parse(jsonString);
+
+        if (parsed?.summary) {
+            // Insert the new summary into session_history
+            await addHistoryEvent(chatId, parsed.summary);
+            console.log(`Session summary added for chat ${chatId}`);
+        }
+    } catch (err) {
+        console.error('Error summarizing session history:', err);
+    }
+}
 
 // ------------------------------
 // POST handler
@@ -508,6 +589,7 @@ export async function POST({ request }) {
         // Save latest user message
         const userMessage = messages[messages.length - 1];
         console.log("Latest user message:", userMessage);
+
         if (userMessage.role === "user") {
             await saveMessage(chatId, "user", userMessage.content);
 
@@ -519,6 +601,15 @@ export async function POST({ request }) {
             console.log("Recent messages for ephemeral extraction:", recentMessages);
             const ephemeralData = await extractEphemeralEntitiesLLM(recentMessages);
             await insertEphemeralData(chatId, ephemeralData);
+
+            // ------------------------------
+            // Check if we should summarize
+            // ------------------------------
+            const messagesSinceLastHistory = await getMessagesSinceLastHistory(chatId);
+            if (messagesSinceLastHistory.length >= SUMMARY_THRESHOLD) {
+                console.log(`Generating session summary for ${messagesSinceLastHistory.length} messages`);
+                await summarizeSessionHistory(chatId, messagesSinceLastHistory);
+            }
         }
 
         // Get session snapshot for system prompt
