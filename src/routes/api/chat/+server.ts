@@ -254,7 +254,7 @@ async function getOrCreateLoreCharacter(name: string, description: string = 'Eph
         .from('lore_characters')
         .select('id')
         .eq('name', name)
-        .single();
+        .maybeSingle();
 
     if (data) return data.id;
 
@@ -262,27 +262,40 @@ async function getOrCreateLoreCharacter(name: string, description: string = 'Eph
         .from('lore_characters')
         .insert({ name, description })
         .select('id')
-        .single();
+        .maybeSingle();
 
     if (insertError) throw insertError;
-    return newData.id;
+    return newData?.id || '';
 }
 
-// ------------------------------
-// Get or create lore place
-// ------------------------------
-async function getOrCreateLorePlace(name: string, description: string = 'Ephemeral place'): Promise<string> {
+async function getOrCreateLorePlace(
+    name: string,
+    chatId: string,
+    description: string = 'Ephemeral place'
+): Promise<string> {
+    // Get the lorebook_id for this chat
+    const { data: chat } = await supabase
+        .from('chats')
+        .select('lorebook_id')
+        .eq('id', chatId)
+        .single();
+
+    const lorebookId = chat?.lorebook_id;
+    if (!lorebookId) throw new Error('Cannot create ephemeral place: chat has no lorebook_id');
+
+    // Check if the place already exists in this lorebook
     const { data, error } = await supabase
         .from('lore_places')
         .select('id')
         .eq('name', name)
+        .eq('lorebook_id', lorebookId)
         .single();
 
     if (data) return data.id;
 
     const { data: newData, error: insertError } = await supabase
         .from('lore_places')
-        .insert({ name, description })
+        .insert({ name, description, lorebook_id: lorebookId })
         .select('id')
         .single();
 
@@ -298,7 +311,7 @@ async function getOrCreateLoreQuest(title: string, description: string = 'Epheme
         .from('lore_quests')
         .select('id')
         .eq('title', title)
-        .single();
+        .maybeSingle();
 
     if (data) return data.id;
 
@@ -306,10 +319,10 @@ async function getOrCreateLoreQuest(title: string, description: string = 'Epheme
         .from('lore_quests')
         .insert({ title, description })
         .select('id')
-        .single();
+        .maybeSingle();
 
     if (insertError) throw insertError;
-    return newData.id;
+    return newData?.id || '';
 }
 
 // ------------------------------
@@ -345,14 +358,16 @@ async function getMessagesSinceLastUser(chatId: string): Promise<{ role: string;
             return messages.map(m => ({ role: m.role, content: m.content }));
         }
 
-        // Return all messages from that last user message onward
-        return messages.slice(lastUserIndex).map(m => ({ role: m.role, content: m.content }));
+        // Include the last AI message before the last user (if it exists)
+        const startIndex = Math.max(0, lastUserIndex - 1);
+
+        // Return messages from that index onward
+        return messages.slice(startIndex).map(m => ({ role: m.role, content: m.content }));
     } catch (err) {
         console.error('Unexpected error in getMessagesSinceLastUser:', err);
         return [];
     }
 }
-
 
 // ------------------------------
 // Helper: Extract ephemeral entities using LLM
@@ -400,8 +415,11 @@ Do not output plain text, only JSON.
         });
 
         const reply = completion.choices[0].message.content ?? '';
+        // Extract JSON from markdown code block if present
+        const jsonMatch = reply.match(/```json\s*([\s\S]*?)\s*```/);
+        const jsonString = jsonMatch ? jsonMatch[1] : reply;
         // Attempt to parse JSON
-        return JSON.parse(reply);
+        return JSON.parse(jsonString);
     } catch (err) {
         console.error("Failed to extract ephemeral entities:", err);
         return null;
@@ -479,6 +497,7 @@ async function insertEphemeralData(chatId: string, data: any) {
 // POST handler
 // ------------------------------
 export async function POST({ request }) {
+    console.log("Received request to /api/chat/regenerate");
     const { chatId, messages } = await request.json();
 
     if (!chatId || !Array.isArray(messages)) {
@@ -488,6 +507,7 @@ export async function POST({ request }) {
     try {
         // Save latest user message
         const userMessage = messages[messages.length - 1];
+        console.log("Latest user message:", userMessage);
         if (userMessage.role === "user") {
             await saveMessage(chatId, "user", userMessage.content);
 
@@ -496,6 +516,7 @@ export async function POST({ request }) {
             // Extract ephemeral entities from recent messages
             // ------------------------------
             const recentMessages = await getMessagesSinceLastUser(chatId); // include user + AI
+            console.log("Recent messages for ephemeral extraction:", recentMessages);
             const ephemeralData = await extractEphemeralEntitiesLLM(recentMessages);
             await insertEphemeralData(chatId, ephemeralData);
         }
