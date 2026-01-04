@@ -10,6 +10,11 @@
 		sendMessage,
 		regenerateMessage,
 		selectVariant,
+		listChats,
+		saveChat,
+		loadMessages,
+		deleteChat,
+		duplicateChat,
 		initializeChat
 	} from '$lib/chatStore';
 
@@ -17,6 +22,8 @@
 	let loading = $state(false);
 	let chatId = $state<string | null>(null);
 	let editingIndex = $state<number | null>(null);
+	let showLoadChats = $state(false);
+	let chats = $state<any[]>([]);
 
 	let messages = $state<Message[]>([
 		{
@@ -49,6 +56,92 @@
 	>
 		New Adventure
 	</button>
+
+	<div class="flex justify-center gap-2 mb-4">
+		<button
+			onclick={() => {
+				const name = prompt('Enter chat name:');
+				if (name && chatId) {
+					saveChat(chatId, name);
+				}
+			}}
+			disabled={!chatId}
+			class="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed transition"
+		>
+			Save Chat
+		</button>
+		<button
+			onclick={() => {
+				const name = prompt('Enter name for duplicated chat:');
+				if (name && chatId) {
+					duplicateChat(chatId, messages, name, (id) => (chatId = id));
+				}
+			}}
+			disabled={!chatId || loading}
+			class="px-4 py-2 bg-yellow-600 text-white font-semibold rounded-lg hover:bg-yellow-700 disabled:bg-gray-600 disabled:cursor-not-allowed transition"
+		>
+			Duplicate Chat
+		</button>
+		<button
+			onclick={async () => {
+				chats = await listChats();
+				showLoadChats = true;
+			}}
+			class="px-4 py-2 bg-purple-600 text-white font-semibold rounded-lg hover:bg-purple-700 transition"
+		>
+			Load Chats
+		</button>
+	</div>
+
+	{#if showLoadChats}
+		<div class="self-center mb-4 p-4 bg-gray-800 rounded-lg border border-gray-700 max-w-md">
+			<h3 class="text-lg font-bold mb-2">Previous Chats</h3>
+			<ul class="space-y-2">
+				{#each chats as chat}
+					<li class="flex gap-2">
+						<button
+							onclick={async () => {
+								chatId = chat.id;
+								localStorage.setItem('chatId', chat.id);
+								await loadMessages(chat.id, (msgs) => (messages = msgs));
+								showLoadChats = false;
+							}}
+							class="flex-1 text-left px-3 py-2 bg-gray-700 rounded hover:bg-gray-600 transition"
+						>
+							{chat.name} ({new Date(chat.created_at).toLocaleDateString()})
+						</button>
+						<button
+							onclick={async () => {
+								if (confirm(`Are you sure you want to delete "${chat.name}"?`)) {
+									const success = await deleteChat(chat.id);
+									if (success) {
+										chats = chats.filter(c => c.id !== chat.id);
+										if (chatId === chat.id) {
+											chatId = null;
+											messages = [{
+												role: 'system',
+												content: 'You are a roleplaying game narrator. Stay in character and describe scenes vividly.'
+											}];
+										}
+									}
+								}
+							}}
+							class="px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition"
+							aria-label="Delete chat"
+						>
+							🗑️
+						</button>
+					</li>
+				{/each}
+			</ul>
+			<button
+				onclick={() => showLoadChats = false}
+				class="mt-2 px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-500 transition"
+			>
+				Close
+			</button>
+		</div>
+	{/if}
 
 	<div
 		class="chat-container flex-1 overflow-hidden rounded-lg border border-gray-700 bg-gray-800 p-4 flex flex-col"
@@ -97,6 +190,7 @@
 											<button
 												onclick={() => selectVariant(i, (msg.selectedVariant || 0) - 1, messages, (msgs) => (messages = msgs))}
 												disabled={(msg.selectedVariant || 0) === 0}
+												aria-label="Previous variant"
 												class="w-6 h-6 flex items-center justify-center rounded-full bg-white bg-opacity-10 hover:bg-opacity-20 transition disabled:opacity-50 disabled:cursor-not-allowed"
 											>
 												<svg class="w-4 h-4" viewBox="0 0 24 24"><path fill="currentColor" d="{mdiChevronLeft}" /></svg>
@@ -105,6 +199,7 @@
 											<button
 												onclick={() => selectVariant(i, (msg.selectedVariant || 0) + 1, messages, (msgs) => (messages = msgs))}
 												disabled={(msg.selectedVariant || 0) === msg.variants.length - 1}
+												aria-label="Next variant"
 												class="w-6 h-6 flex items-center justify-center rounded-full bg-white bg-opacity-10 hover:bg-opacity-20 transition disabled:opacity-50 disabled:cursor-not-allowed"
 											>
 												<svg class="w-4 h-4" viewBox="0 0 24 24"><path fill="currentColor" d="{mdiChevronRight}" /></svg>

@@ -8,6 +8,101 @@ export type Message = {
 	selectedVariant?: number; // index of selected variant
 };
 
+// List all chats
+export async function listChats() {
+	const { data, error } = await supabase
+		.from('chats')
+		.select('id, name, created_at')
+		.order('created_at', { ascending: false });
+
+	if (error) {
+		console.error('Error listing chats:', error);
+		return [];
+	}
+
+	return data || [];
+}
+
+// Save/update chat name
+export async function saveChat(chatId: string, name: string) {
+	const { error } = await supabase
+		.from('chats')
+		.update({ name })
+		.eq('id', chatId);
+
+	if (error) {
+		console.error('Error saving chat:', error);
+	}
+}
+
+// Delete a chat and its messages
+export async function deleteChat(chatId: string) {
+	// First delete messages
+	const { error: messagesError } = await supabase
+		.from('messages')
+		.delete()
+		.eq('chat_id', chatId);
+
+	if (messagesError) {
+		console.error('Error deleting messages:', messagesError);
+		return false;
+	}
+
+	// Then delete chat
+	const { error: chatError } = await supabase
+		.from('chats')
+		.delete()
+		.eq('id', chatId);
+
+	if (chatError) {
+		console.error('Error deleting chat:', chatError);
+		return false;
+	}
+
+	return true;
+}
+
+// Duplicate a chat (create a copy)
+export async function duplicateChat(chatId: string | null, messages: Message[], name: string, setChatId: (id: string | null) => void) {
+	if (!chatId) return;
+
+	// Create new chat
+	const { data: newChat, error: chatError } = await supabase
+		.from('chats')
+		.insert([{ name }])
+		.select()
+		.single();
+
+	if (chatError || !newChat?.id) {
+		console.error('Error creating duplicated chat:', chatError);
+		return;
+	}
+
+	// Copy messages to new chat (excluding system message)
+	const messagesToCopy = messages.slice(1).map(msg => ({
+		chat_id: newChat.id,
+		role: msg.role,
+		content: msg.content
+	}));
+
+	if (messagesToCopy.length > 0) {
+		const { error: messagesError } = await supabase
+			.from('messages')
+			.insert(messagesToCopy);
+
+		if (messagesError) {
+			console.error('Error copying messages:', messagesError);
+			// Clean up the chat if messages failed
+			await supabase.from('chats').delete().eq('id', newChat.id);
+			return;
+		}
+	}
+
+	// Switch to the new chat
+	setChatId(newChat.id);
+	localStorage.setItem('chatId', newChat.id);
+}
+
 // Create a new chat session
 export async function newAdventure(setChatId: (id: string | null) => void, setMessages: (messages: Message[]) => void) {
 	const { data, error } = await supabase
