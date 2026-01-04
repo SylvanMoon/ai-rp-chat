@@ -63,7 +63,9 @@ export function createSidebarStore() {
 			if (confirm(`Are you sure you want to delete this chat?`)) {
 				const success = await deleteChat(chatId);
 				if (success) {
-					chats.update(currentChats => currentChats.filter(c => c.id !== chatId));
+					// Reload chats from server to ensure the list is up to date
+					const loadedChats = await listChats();
+					chats.set(loadedChats);
 					if (currentChatId === chatId) {
 						onChatIdChange(null);
 						onMessagesChange([{

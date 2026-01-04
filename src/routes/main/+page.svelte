@@ -119,8 +119,8 @@
 		chats={sidebarChats}
 		onChatIdChange={(id) => chatId = id}
 		onMessagesChange={(msgs) => messages = msgs}
-		onShowLoadChatsChange={(show) => showLoadChats = show}
-		onChatsChange={(chs) => sidebarChats = chs}
+		onShowLoadChatsChange={(show) => sidebar.showLoadChats.set(show)}
+		onChatsChange={(chs) => sidebar.chats.set(chs)}
 	/>
 
 	<!-- Main Content -->
