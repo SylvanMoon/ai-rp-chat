@@ -67,11 +67,11 @@ export async function loadLorebookData(currentLorebook: any) {
 	};
 }
 
-export async function addCharacter(event: Event, newCharacterName: string, newCharacterDescription: string, newCharacterRelationships: string, newCharacterAliases: string, currentLorebook: any) {
+export async function addCharacter(event: Event, newCharacterName: string, newCharacterDescription: string, newCharacterRelationships: any[], newCharacterAliases: string, currentLorebook: any) {
 	event.preventDefault();
 	if (!newCharacterName.trim() || !currentLorebook) return null;
 
-	const relationships = newCharacterRelationships ? JSON.parse(newCharacterRelationships) : {};
+	const relationships = newCharacterRelationships || [];
 	const aliases = newCharacterAliases ? JSON.parse(newCharacterAliases) : [];
 
 	const { data, error } = await supabase
@@ -144,7 +144,7 @@ export async function updateCharacter(event: Event, editingCharacter: any, chara
 	event.preventDefault();
 	if (!editingCharacter) return;
 
-	const relationships = editingCharacter.relationships ? (typeof editingCharacter.relationships === 'string' ? JSON.parse(editingCharacter.relationships) : editingCharacter.relationships) : {};
+	const relationships = editingCharacter.relationships || [];
 	const aliases = editingCharacter.aliases ? (typeof editingCharacter.aliases === 'string' ? JSON.parse(editingCharacter.aliases) : editingCharacter.aliases) : [];
 
 	const { error } = await supabase
