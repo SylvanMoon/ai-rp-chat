@@ -39,7 +39,9 @@
 	let editingQuest = $state<any>(null);
 
 	$effect(() => {
-		loadAllLorebooks(allLorebooks);
+		loadAllLorebooks().then(data => {
+			allLorebooks = data;
+		});
 	});
 </script>
 
@@ -66,7 +68,7 @@
 								<p class="text-gray-300 text-sm">{lorebook.description}</p>
 							</div>
 							<button
-								onclick={async () => currentLorebook = await selectLorebook(lorebook, characters, places, quests)}
+								onclick={async () => { const result = await selectLorebook(lorebook); currentLorebook = result.lorebook; characters = result.characters; places = result.places; quests = result.quests; }}
 								class="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
 							>
 								Open
@@ -79,7 +81,7 @@
 
 		<div class="bg-gray-800 p-4 rounded-lg">
 			<h2 class="text-xl font-semibold mb-2">Create New Lorebook</h2>
-			<form onsubmit={async (event) => { const data = await createLorebook(event, lorebookName, lorebookDescription, allLorebooks); if (data) { currentLorebook = data; lorebookName = ''; lorebookDescription = ''; } }} class="flex flex-col gap-2">
+			<form onsubmit={async (event) => { const data = await createLorebook(event, lorebookName, lorebookDescription); if (data) { currentLorebook = data; lorebookName = ''; lorebookDescription = ''; allLorebooks = await loadAllLorebooks(); } }} class="flex flex-col gap-2">
 				<input
 					type="text"
 					placeholder="Lorebook Name"
@@ -172,7 +174,7 @@
 						</li>
 					{/each}
 				</ul>
-				<form onsubmit={async (event) => { await addCharacter(event, newCharacterName, newCharacterDescription, newCharacterRelationships, newCharacterAliases, currentLorebook, characters); newCharacterName = ''; newCharacterDescription = ''; newCharacterRelationships = ''; newCharacterAliases = ''; }} class="flex flex-col gap-2">
+				<form onsubmit={async (event) => { const data = await addCharacter(event, newCharacterName, newCharacterDescription, newCharacterRelationships, newCharacterAliases, currentLorebook); if (data) { characters = [...characters, data]; newCharacterName = ''; newCharacterDescription = ''; newCharacterRelationships = ''; newCharacterAliases = ''; } }} class="flex flex-col gap-2">
 					<input
 						type="text"
 						placeholder="Character Name"

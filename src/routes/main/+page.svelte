@@ -10,8 +10,11 @@
 		regenerateMessage,
 		selectVariant,
 		loadMessages,
-		initializeChat
+		initializeChat,
+		setChatLorebook,
+		getChatLorebook
 	} from '$lib/chatStore';
+	import { supabase } from '$lib/supabaseClient';
 	import { createSidebarStore } from './components/sidebar/sidebar';
 	import Sidebar from './components/sidebar/Sidebar.svelte';
 
@@ -26,6 +29,10 @@
 			content: 'You are a roleplaying game narrator. Stay in character and describe scenes vividly.'
 		}
 	]);
+
+	let lorebooks = $state<any[]>([]);
+	let currentChatLorebook = $state<any>(null);
+	let selectedLorebookId = $state<string>('');
 
 	const sidebar = createSidebarStore();
 
@@ -52,6 +59,53 @@
 			(msgs) => (messages = msgs)
 		);
 	});
+
+	// Load lorebooks and current chat lorebook when chatId changes
+	$effect(() => {
+		if (chatId) {
+			loadChatLorebook(chatId);
+		}
+		loadAvailableLorebooks();
+	});
+
+	// Load available lorebooks
+	async function loadAvailableLorebooks() {
+		const { data, error } = await supabase
+			.from('lorebooks')
+			.select('id, name, description')
+			.order('name');
+
+		if (error) {
+			console.error('Error loading lorebooks:', error);
+			return;
+		}
+
+		lorebooks = data || [];
+	}
+
+	// Load the lorebook associated with the current chat
+	async function loadChatLorebook(chatId: string) {
+		const lorebookData = await getChatLorebook(chatId);
+		currentChatLorebook = lorebookData?.lorebook || null;
+		selectedLorebookId = currentChatLorebook?.id || '';
+	}
+
+	// Set the lorebook for the current chat
+	async function selectLorebook(lorebookId: string | null) {
+		if (!chatId) return;
+
+		const success = await setChatLorebook(chatId, lorebookId);
+		if (success) {
+			selectedLorebookId = lorebookId || '';
+			if (lorebookId) {
+				const selectedLorebook = lorebooks.find(lb => lb.id === lorebookId);
+				currentChatLorebook = selectedLorebook || null;
+			} else {
+				currentChatLorebook = null;
+			}
+		}
+	}
+
 </script>
 
 <main class="flex min-h-screen bg-gray-900 text-white font-sans">
@@ -72,15 +126,40 @@
 	<!-- Main Content -->
 	<div class="flex-1 flex flex-col">
 		<!-- Header -->
-		<header class="bg-gray-900 p-4 border-b border-gray-700 flex items-center">
-			<button
-				onclick={() => sidebar.toggleSidebar()}
-				class="mr-4 p-2 bg-gray-700 rounded hover:bg-gray-600 transition"
-				aria-label="Toggle sidebar"
-			>
-				☰
-			</button>
-			<h1 class="text-2xl font-bold">AI RP Chat</h1>
+		<header class="bg-gray-900 p-4 border-b border-gray-700 flex items-center justify-between">
+			<div class="flex items-center">
+				<button
+					onclick={() => sidebar.toggleSidebar()}
+					class="mr-4 p-2 bg-gray-700 rounded hover:bg-gray-600 transition"
+					aria-label="Toggle sidebar"
+				>
+					☰
+				</button>
+				<h1 class="text-2xl font-bold">AI RP Chat</h1>
+			</div>
+
+			<!-- Lorebook Selector -->
+			{#if chatId}
+				<div class="flex items-center gap-2">
+					<label for="lorebook-select" class="text-sm font-medium">Lorebook:</label>
+					<select
+						id="lorebook-select"
+						bind:value={selectedLorebookId}
+						onchange={(e) => selectLorebook((e.target as HTMLSelectElement).value || null)}
+						class="bg-gray-700 text-white rounded px-3 py-1 text-sm border border-gray-600 focus:border-blue-500 focus:outline-none"
+					>
+						<option value="">No lorebook</option>
+						{#each lorebooks as lorebook}
+							<option value={lorebook.id}>{lorebook.name}</option>
+						{/each}
+					</select>
+					{#if currentChatLorebook}
+						<span class="text-xs text-gray-400 max-w-xs truncate" title={currentChatLorebook.description}>
+							{currentChatLorebook.description}
+						</span>
+					{/if}
+				</div>
+			{/if}
 		</header>
 
 		<!-- Chat Interface -->
@@ -197,6 +276,7 @@
 													onclick={() =>
 														regenerateMessage(
 															i,
+															chatId,
 															messages,
 															(load) => (loading = load),
 															(msgs) => (messages = msgs)

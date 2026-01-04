@@ -12,7 +12,7 @@ export type Message = {
 export async function listChats() {
 	const { data, error } = await supabase
 		.from('chats')
-		.select('id, name, created_at')
+		.select('id, name, created_at, lorebook_id')
 		.order('created_at', { ascending: false });
 
 	if (error) {
@@ -21,6 +21,61 @@ export async function listChats() {
 	}
 
 	return data || [];
+}
+
+// Associate a lorebook with a chat
+export async function setChatLorebook(chatId: string, lorebookId: string | null) {
+	const { error } = await supabase
+		.from('chats')
+		.update({ lorebook_id: lorebookId })
+		.eq('id', chatId);
+
+	if (error) {
+		console.error('Error setting chat lorebook:', error);
+		return false;
+	}
+
+	return true;
+}
+
+// Get lorebook data for a chat
+export async function getChatLorebook(chatId: string) {
+	// First get the lorebook_id from the chat
+	const { data: chat, error: chatError } = await supabase
+		.from('chats')
+		.select('lorebook_id')
+		.eq('id', chatId)
+		.single();
+
+	if (chatError || !chat?.lorebook_id) {
+		return null;
+	}
+
+	// Then get the lorebook data
+	const { data: lorebook, error: lorebookError } = await supabase
+		.from('lorebooks')
+		.select('*')
+		.eq('id', chat.lorebook_id)
+		.single();
+
+	if (lorebookError) {
+		console.error('Error loading lorebook:', lorebookError);
+		return null;
+	}
+
+	// Get characters, places, and quests
+	const [charactersRes, placesRes, questsRes] = await Promise.all([
+		supabase.from('lore_characters').select('*').eq('lorebook_id', chat.lorebook_id),
+		supabase.from('lore_places').select('*').eq('lorebook_id', chat.lorebook_id),
+		supabase.from('lore_quests').select('*').eq('lorebook_id', chat.lorebook_id)
+	]);
+
+	return {
+		lorebook,
+		characters: charactersRes.data || [],
+		places: placesRes.data || [],
+		quests: questsRes.data || []
+	};
 }
 
 // Save/update chat name
@@ -66,10 +121,17 @@ export async function deleteChat(chatId: string) {
 export async function duplicateChat(chatId: string | null, messages: Message[], name: string, setChatId: (id: string | null) => void) {
 	if (!chatId) return;
 
+	// Get the original chat's lorebook_id
+	const { data: originalChat } = await supabase
+		.from('chats')
+		.select('lorebook_id')
+		.eq('id', chatId)
+		.single();
+
 	// Create new chat
 	const { data: newChat, error: chatError } = await supabase
 		.from('chats')
-		.insert([{ name }])
+		.insert([{ name, lorebook_id: originalChat?.lorebook_id || null }])
 		.select()
 		.single();
 
@@ -224,7 +286,7 @@ export async function sendMessage(input: string, chatId: string | null, messages
 }
 
 // Regenerate an assistant message by adding a new variant
-export async function regenerateMessage(index: number, messages: Message[], setLoading: (loading: boolean) => void, setMessages: (messages: Message[]) => void) {
+export async function regenerateMessage(index: number, chatId: string | null, messages: Message[], setLoading: (loading: boolean) => void, setMessages: (messages: Message[]) => void) {
 	setLoading(true);
 
 	try {
@@ -234,7 +296,7 @@ export async function regenerateMessage(index: number, messages: Message[], setL
 		const res = await fetch('/api/chat/regenerate', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ messages: messagesUpToUser })
+			body: JSON.stringify({ chatId, messages: messagesUpToUser })
 		});
 
 		const data = await res.json();

@@ -1,25 +1,27 @@
 import { supabase } from '$lib/supabaseClient';
 
-export async function loadAllLorebooks(allLorebooks: any[]) {
+export async function loadAllLorebooks() {
 	const { data, error } = await supabase
 		.from('lorebooks')
 		.select('*');
 
 	if (error) {
 		console.error('Error loading lorebooks:', error);
-		return;
+		return [];
 	}
 
-	allLorebooks.length = 0;
-	allLorebooks.push(...(data || []));
+	return data || [];
 }
 
-export async function selectLorebook(lorebook: any, characters: any[], places: any[], quests: any[]) {
-	await loadLorebookData(lorebook, characters, places, quests);
-	return lorebook;
+export async function selectLorebook(lorebook: any) {
+	const data = await loadLorebookData(lorebook);
+	return {
+		lorebook,
+		...data
+	};
 }
 
-export async function createLorebook(event: Event, lorebookName: string, lorebookDescription: string, allLorebooks: any[]) {
+export async function createLorebook(event: Event, lorebookName: string, lorebookDescription: string) {
 	event.preventDefault();
 	if (!lorebookName.trim()) return null;
 
@@ -34,41 +36,40 @@ export async function createLorebook(event: Event, lorebookName: string, loreboo
 		return null;
 	}
 
-	loadAllLorebooks(allLorebooks); // Refresh the list
 	return data;
 }
 
-export async function loadLorebookData(currentLorebook: any, characters: any[], places: any[], quests: any[]) {
-	if (!currentLorebook) return;
+export async function loadLorebookData(currentLorebook: any) {
+	if (!currentLorebook) return { characters: [], places: [], quests: [] };
 
 	// Load characters
 	const { data: chars } = await supabase
 		.from('lore_characters')
 		.select('*')
 		.eq('lorebook_id', currentLorebook.id);
-	characters.length = 0;
-	characters.push(...(chars || []));
 
 	// Load places
 	const { data: pls } = await supabase
 		.from('lore_places')
 		.select('*')
 		.eq('lorebook_id', currentLorebook.id);
-	places.length = 0;
-	places.push(...(pls || []));
 
 	// Load quests
 	const { data: qsts } = await supabase
 		.from('lore_quests')
 		.select('*')
 		.eq('lorebook_id', currentLorebook.id);
-	quests.length = 0;
-	quests.push(...(qsts || []));
+
+	return {
+		characters: chars || [],
+		places: pls || [],
+		quests: qsts || []
+	};
 }
 
-export async function addCharacter(event: Event, newCharacterName: string, newCharacterDescription: string, newCharacterRelationships: string, newCharacterAliases: string, currentLorebook: any, characters: any[]) {
+export async function addCharacter(event: Event, newCharacterName: string, newCharacterDescription: string, newCharacterRelationships: string, newCharacterAliases: string, currentLorebook: any) {
 	event.preventDefault();
-	if (!newCharacterName.trim() || !currentLorebook) return;
+	if (!newCharacterName.trim() || !currentLorebook) return null;
 
 	const relationships = newCharacterRelationships ? JSON.parse(newCharacterRelationships) : {};
 	const aliases = newCharacterAliases ? JSON.parse(newCharacterAliases) : [];
@@ -87,10 +88,10 @@ export async function addCharacter(event: Event, newCharacterName: string, newCh
 
 	if (error) {
 		console.error('Error adding character:', error);
-		return;
+		return null;
 	}
 
-	characters.push(data);
+	return data;
 }
 
 export async function addPlace(event: Event, newPlaceName: string, newPlaceDescription: string, currentLorebook: any, places: any[]) {
