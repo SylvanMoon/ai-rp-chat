@@ -4,6 +4,8 @@ export type Message = {
 	id?: number;
 	role: 'system' | 'user' | 'assistant';
 	content: string;
+	variants?: string[]; // for assistant messages that can be regenerated
+	selectedVariant?: number; // index of selected variant
 };
 
 // Create a new chat session
@@ -48,11 +50,18 @@ export async function loadMessages(chatId: string | null, setMessages: (messages
 			content:
 				'You are a roleplaying game narrator. Stay in character and describe scenes vividly.'
 		},
-		...data.map((msg) => ({
-			id: msg.id,
-			role: msg.role as 'user' | 'assistant',
-			content: msg.content
-		}))
+		...data.map((msg) => {
+			const message: Message = {
+				id: msg.id,
+				role: msg.role as 'user' | 'assistant',
+				content: msg.content
+			};
+			if (msg.role === 'assistant') {
+				message.variants = [msg.content];
+				message.selectedVariant = 0;
+			}
+			return message;
+		})
 	]);
 }
 
@@ -110,12 +119,69 @@ export async function sendMessage(input: string, chatId: string | null, messages
 
 		const data = await res.json();
 
-		setMessages([...newMessages, { role: 'assistant' as const, content: data.reply }]);
+		setMessages([...newMessages, { role: 'assistant' as const, content: data.reply, variants: [data.reply], selectedVariant: 0 }]);
 	} catch (err) {
 		console.error(err);
-		setMessages([...newMessages, { role: 'assistant' as const, content: '⚠️ Error talking to AI.' }]);
+		setMessages([...newMessages, { role: 'assistant' as const, content: '⚠️ Error talking to AI.', variants: ['⚠️ Error talking to AI.'], selectedVariant: 0 }]);
 	} finally {
 		setLoading(false);
+	}
+}
+
+// Regenerate an assistant message by adding a new variant
+export async function regenerateMessage(index: number, messages: Message[], setLoading: (loading: boolean) => void, setMessages: (messages: Message[]) => void) {
+	setLoading(true);
+
+	try {
+		// Get messages up to the user message before the assistant message
+		const messagesUpToUser = messages.slice(0, index);
+		
+		const res = await fetch('/api/chat/regenerate', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ messages: messagesUpToUser })
+		});
+
+		const data = await res.json();
+		const newVariant = data.option || '⚠️ Error regenerating message.';
+		
+		const newMessages = [...messages];
+		const msg = newMessages[index];
+		if (!msg.variants) msg.variants = [msg.content];
+		msg.variants.push(newVariant);
+		msg.selectedVariant = msg.variants.length - 1;
+		msg.content = newVariant;
+		
+		setMessages(newMessages);
+	} catch (err) {
+		console.error(err);
+		const newMessages = [...messages];
+		const msg = newMessages[index];
+		if (!msg.variants) msg.variants = [msg.content];
+		msg.variants.push('⚠️ Error regenerating message.');
+		msg.selectedVariant = msg.variants.length - 1;
+		msg.content = '⚠️ Error regenerating message.';
+		setMessages(newMessages);
+	} finally {
+		setLoading(false);
+	}
+}
+
+// Select a variant for a regeneratable message
+export async function selectVariant(index: number, variantIndex: number, messages: Message[], setMessages: (messages: Message[]) => void) {
+	const newMessages = [...messages];
+	const msg = newMessages[index];
+	if (msg.variants && variantIndex >= 0 && variantIndex < msg.variants.length) {
+		msg.selectedVariant = variantIndex;
+		msg.content = msg.variants[variantIndex];
+		if (msg.id) {
+			const { error } = await supabase
+				.from('messages')
+				.update({ content: msg.content })
+				.eq('id', msg.id);
+			if (error) console.error('Error updating message:', error);
+		}
+		setMessages(newMessages);
 	}
 }
 

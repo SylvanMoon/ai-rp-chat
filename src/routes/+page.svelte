@@ -1,13 +1,15 @@
 <script lang="ts">
 	import Markdown from '$lib/Markdown.svelte';
 	import type { Message } from '$lib/chatStore';
-	import { mdiPencil, mdiTrashCan } from '@mdi/js';
+	import { mdiPencil, mdiTrashCan, mdiRefresh, mdiChevronLeft, mdiChevronRight } from '@mdi/js';
 	import {
 		newAdventure,
 		deleteMessage,
 		startEdit,
 		saveEdit,
 		sendMessage,
+		regenerateMessage,
+		selectVariant,
 		initializeChat
 	} from '$lib/chatStore';
 
@@ -88,29 +90,65 @@
 								>
 							</div>
 						{:else}
-							{#if msg.role === 'assistant'}
-								<Markdown content={msg.content} />
-							{:else}
-								{msg.content}
-							{/if}
-
-							<div class="flex justify-end gap-2 mt-1">
-								{#if msg.role === 'user'}
-									<button
-										onclick={() => startEdit(i, (idx) => (editingIndex = idx))}
-										title="Edit"
-										class="w-8 h-8 flex items-center justify-center rounded-full bg-white bg-opacity-10 hover:bg-opacity-20 transition"
-									><svg class="w-5 h-5" viewBox="0 0 24 24"><path fill="currentColor" d="{mdiPencil}" /></svg></button
-									>
+								{#if msg.role === 'assistant'}
+									<Markdown content={msg.content} />
+									{#if msg.variants && msg.variants.length > 1}
+										<div class="flex justify-center items-center gap-2 mt-2">
+											<button
+												onclick={() => selectVariant(i, (msg.selectedVariant || 0) - 1, messages, (msgs) => (messages = msgs))}
+												disabled={(msg.selectedVariant || 0) === 0}
+												class="w-6 h-6 flex items-center justify-center rounded-full bg-white bg-opacity-10 hover:bg-opacity-20 transition disabled:opacity-50 disabled:cursor-not-allowed"
+											>
+												<svg class="w-4 h-4" viewBox="0 0 24 24"><path fill="currentColor" d="{mdiChevronLeft}" /></svg>
+											</button>
+											<span class="text-sm text-gray-400">{(msg.selectedVariant || 0) + 1} / {msg.variants.length}</span>
+											<button
+												onclick={() => selectVariant(i, (msg.selectedVariant || 0) + 1, messages, (msgs) => (messages = msgs))}
+												disabled={(msg.selectedVariant || 0) === msg.variants.length - 1}
+												class="w-6 h-6 flex items-center justify-center rounded-full bg-white bg-opacity-10 hover:bg-opacity-20 transition disabled:opacity-50 disabled:cursor-not-allowed"
+											>
+												<svg class="w-4 h-4" viewBox="0 0 24 24"><path fill="currentColor" d="{mdiChevronRight}" /></svg>
+											</button>
+										</div>
+									{/if}
+								{:else}
+									{msg.content}
 								{/if}
-								<button
-									onclick={() => deleteMessage(i, messages, (msgs) => (messages = msgs))}
-									title="Delete"
-									class="w-8 h-8 flex items-center justify-center rounded-full bg-white bg-opacity-10 hover:bg-opacity-20 transition"
-									><svg class="w-5 h-5" viewBox="0 0 24 24"><path fill="currentColor" d="{mdiTrashCan}" /></svg></button
-								>
-							</div>
-						{/if}
+
+								<div class="flex justify-end gap-2 mt-1">
+									{#if msg.role === 'user'}
+										<button
+											onclick={() => startEdit(i, (idx) => (editingIndex = idx))}
+											title="Edit"
+											class="w-8 h-8 flex items-center justify-center rounded-full bg-white bg-opacity-10 hover:bg-opacity-20 transition"
+											><svg class="w-5 h-5" viewBox="0 0 24 24"><path fill="currentColor" d="{mdiPencil}" /></svg></button
+										>
+									{/if}
+									{#if msg.role === 'assistant'}
+										<button
+											onclick={() =>
+												regenerateMessage(
+													i,
+													messages,
+													(load) => (loading = load),
+													(msgs) => (messages = msgs)
+												)}
+											title="Regenerate"
+											disabled={loading}
+											class="w-8 h-8 flex items-center justify-center rounded-full bg-white bg-opacity-10 hover:bg-opacity-20 transition disabled:opacity-50"
+										>
+											<svg class="w-5 h-5" viewBox="0 0 24 24"><path fill="currentColor" d="{mdiRefresh}" /></svg>
+										</button>
+									{/if}
+									<button
+										onclick={() => deleteMessage(i, messages, (msgs) => (messages = msgs))}
+										title="Delete"
+										class="w-8 h-8 flex items-center justify-center rounded-full bg-white bg-opacity-10 hover:bg-opacity-20 transition"
+										><svg class="w-5 h-5" viewBox="0 0 24 24"><path fill="currentColor" d="{mdiTrashCan}" /></svg></button
+									>
+								</div>
+							{/if}
+					
 					</div>
 				{/if}
 			{/each}
