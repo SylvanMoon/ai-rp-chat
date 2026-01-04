@@ -247,29 +247,233 @@ async function addHistoryEvent(chatId: string, summary: string, notes?: string) 
 }
 
 // ------------------------------
-// Get messages since last user message (for ephemeral extraction)
+// Get or create lore character
 // ------------------------------
-async function getMessagesSinceLastUser(chatId: string) {
+async function getOrCreateLoreCharacter(name: string, description: string = 'Ephemeral character'): Promise<string> {
     const { data, error } = await supabase
-        .from('messages')
-        .select('*')
-        .eq('chat_id', chatId)
-        .order('created_at', { ascending: true });
+        .from('lore_characters')
+        .select('id')
+        .eq('name', name)
+        .single();
 
-    if (error) {
-        console.error('Error fetching messages:', error);
+    if (data) return data.id;
+
+    const { data: newData, error: insertError } = await supabase
+        .from('lore_characters')
+        .insert({ name, description })
+        .select('id')
+        .single();
+
+    if (insertError) throw insertError;
+    return newData.id;
+}
+
+// ------------------------------
+// Get or create lore place
+// ------------------------------
+async function getOrCreateLorePlace(name: string, description: string = 'Ephemeral place'): Promise<string> {
+    const { data, error } = await supabase
+        .from('lore_places')
+        .select('id')
+        .eq('name', name)
+        .single();
+
+    if (data) return data.id;
+
+    const { data: newData, error: insertError } = await supabase
+        .from('lore_places')
+        .insert({ name, description })
+        .select('id')
+        .single();
+
+    if (insertError) throw insertError;
+    return newData.id;
+}
+
+// ------------------------------
+// Get or create lore quest
+// ------------------------------
+async function getOrCreateLoreQuest(title: string, description: string = 'Ephemeral quest'): Promise<string> {
+    const { data, error } = await supabase
+        .from('lore_quests')
+        .select('id')
+        .eq('title', title)
+        .single();
+
+    if (data) return data.id;
+
+    const { data: newData, error: insertError } = await supabase
+        .from('lore_quests')
+        .insert({ title, description })
+        .select('id')
+        .single();
+
+    if (insertError) throw insertError;
+    return newData.id;
+}
+
+// ------------------------------
+// Fetch messages since the previous user message
+// ------------------------------
+async function getMessagesSinceLastUser(chatId: string): Promise<{ role: string; content: string }[]> {
+    try {
+        // Get all messages for this chat ordered by insertion
+        const { data: messages, error } = await supabase
+            .from('messages')
+            .select('role, content, created_at')
+            .eq('chat_id', chatId)
+            .order('created_at', { ascending: true });
+
+        if (error) {
+            console.error('Error fetching messages for ephemeral parsing:', error);
+            return [];
+        }
+
+        if (!messages || messages.length === 0) return [];
+
+        // Find the index of the last user message
+        let lastUserIndex = -1;
+        for (let i = messages.length - 1; i >= 0; i--) {
+            if (messages[i].role === 'user') {
+                lastUserIndex = i;
+                break;
+            }
+        }
+
+        if (lastUserIndex === -1) {
+            // No previous user messages, return all messages
+            return messages.map(m => ({ role: m.role, content: m.content }));
+        }
+
+        // Return all messages from that last user message onward
+        return messages.slice(lastUserIndex).map(m => ({ role: m.role, content: m.content }));
+    } catch (err) {
+        console.error('Unexpected error in getMessagesSinceLastUser:', err);
         return [];
     }
-
-    // Find last user message index
-    let lastUserIndex = -1;
-    data.forEach((msg, idx) => {
-        if (msg.role === 'user') lastUserIndex = idx;
-    });
-
-    // Return all messages **since the last user message**
-    return lastUserIndex >= 0 ? data.slice(lastUserIndex) : [];
 }
+
+
+// ------------------------------
+// Helper: Extract ephemeral entities using LLM
+// ------------------------------
+async function extractEphemeralEntitiesLLM(recentMessages: { role: string; content: string }[]) {
+    if (!recentMessages.length) return null;
+
+    // Build a single string for context
+    const conversation = recentMessages
+        .map(m => `${m.role.toUpperCase()}: ${m.content}`)
+        .join('\n');
+
+    const systemPrompt = `
+You are a Game Master assistant. 
+Your task is to extract **all new ephemeral entities** mentioned in the conversation. 
+Ephemeral entities include:
+- Characters: name, optional description
+- Places: name, optional description
+- Quests: title, optional description
+- Plot points: notes
+- History events: summary
+
+**Output JSON only**, in this format:
+{
+  "characters": [{"name": "...", "description": "..."}, ...],
+  "places": [{"name": "...", "description": "..."}, ...],
+  "quests": [{"title": "...", "description": "..."}, ...],
+  "plot_points": [{"notes": "..."}, ...],
+  "events": [{"summary": "..."} ...]
+}
+
+Do not include any existing entities that are already in the session (we will filter duplicates later). 
+Do not output plain text, only JSON.
+`;
+
+    try {
+        const completion = await client.chat.completions.create({
+            model: "deepseek-ai/deepseek-r1",
+            messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: conversation }
+            ],
+            temperature: 0,
+            max_tokens: 1024
+        });
+
+        const reply = completion.choices[0].message.content ?? '';
+        // Attempt to parse JSON
+        return JSON.parse(reply);
+    } catch (err) {
+        console.error("Failed to extract ephemeral entities:", err);
+        return null;
+    }
+}
+
+// ------------------------------
+// Helper: Insert ephemeral data into session tables
+// ------------------------------
+async function insertEphemeralData(chatId: string, data: any) {
+    if (!data) return;
+
+    // Insert characters
+    if (data.characters?.length) {
+        for (const c of data.characters) {
+            try {
+                // Use getOrCreateLoreCharacter to ensure a permanent lore ID exists
+                const loreId = await getOrCreateLoreCharacter(c.name, c.description);
+                await addEphemeralEntity(chatId, 'character', loreId, 'Detected ephemeral from LLM');
+            } catch (err) {
+                console.error("Error inserting ephemeral character:", err);
+            }
+        }
+    }
+
+    // Insert places
+    if (data.places?.length) {
+        for (const p of data.places) {
+            try {
+                const loreId = await getOrCreateLorePlace(p.name, p.description);
+                await addEphemeralEntity(chatId, 'place', loreId, 'Detected ephemeral from LLM');
+            } catch (err) {
+                console.error("Error inserting ephemeral place:", err);
+            }
+        }
+    }
+
+    // Insert quests
+    if (data.quests?.length) {
+        for (const q of data.quests) {
+            try {
+                const loreId = await getOrCreateLoreQuest(q.title, q.description);
+                await addEphemeralEntity(chatId, 'quest', loreId, 'Detected ephemeral from LLM');
+            } catch (err) {
+                console.error("Error inserting ephemeral quest:", err);
+            }
+        }
+    }
+
+    // Insert plot points
+    if (data.plot_points?.length) {
+        for (const pp of data.plot_points) {
+            try {
+                await addEphemeralPlotPoint(chatId, pp.notes);
+            } catch (err) {
+                console.error("Error inserting ephemeral plot point:", err);
+            }
+        }
+    }
+
+    // Insert events
+    if (data.events?.length) {
+        for (const ev of data.events) {
+            try {
+                await addHistoryEvent(chatId, ev.summary);
+            } catch (err) {
+                console.error("Error inserting ephemeral event:", err);
+            }
+        }
+    }
+}
+
 
 // ------------------------------
 // POST handler
@@ -277,18 +481,24 @@ async function getMessagesSinceLastUser(chatId: string) {
 export async function POST({ request }) {
     const { chatId, messages } = await request.json();
 
-    if (!chatId || !Array.isArray(messages)) return json({ error: "Missing chatId or invalid messages" }, { status: 400 });
+    if (!chatId || !Array.isArray(messages)) {
+        return json({ error: "Missing chatId or invalid messages" }, { status: 400 });
+    }
 
     try {
         // Save latest user message
         const userMessage = messages[messages.length - 1];
-        if (userMessage.role === "user") await saveMessage(chatId, "user", userMessage.content);
+        if (userMessage.role === "user") {
+            await saveMessage(chatId, "user", userMessage.content);
 
-        // Extract ephemeral entities **only after a user message**
-        const recentMessages = await getMessagesSinceLastUser(chatId);
-        // Here you would parse `recentMessages` for ephemeral characters, plot points, etc.
-        // Example: addEphemeralPlotPoint(chatId, "Detected ephemeral plot point");
-        // Example: addEphemeralEntity(chatId, 'character', detectedLoreId, "AI introduced this NPC");
+            // ------------------------------
+            // Only after a user message:
+            // Extract ephemeral entities from recent messages
+            // ------------------------------
+            const recentMessages = await getMessagesSinceLastUser(chatId); // include user + AI
+            const ephemeralData = await extractEphemeralEntitiesLLM(recentMessages);
+            await insertEphemeralData(chatId, ephemeralData);
+        }
 
         // Get session snapshot for system prompt
         const sessionLoreData = await getSessionLoreSnapshot(chatId);
