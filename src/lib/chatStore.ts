@@ -166,25 +166,53 @@ export async function duplicateChat(chatId: string | null, messages: Message[], 
 }
 
 // Create a new chat session
-export async function newAdventure(setChatId: (id: string | null) => void, setMessages: (messages: Message[]) => void) {
+export async function newAdventure(
+	setChatId: (id: string | null) => void,
+	setMessages: (messages: Message[]) => void
+) {
+	// Default main prompt
+	const defaultPrompt =
+		'You are a roleplaying game narrator. Stay in character and describe scenes vividly.';
+
+	// Fetch the current main prompt from existing chats
+	const { data: existing } = await supabase
+		.from('chats')
+		.select('main_prompt')
+		.limit(1);
+	const mainPrompt = existing && existing.length > 0 ? existing[0].main_prompt : defaultPrompt;
+
+	// Create a new chat with optional main_prompt
 	const { data, error } = await supabase
 		.from('chats')
-		.insert([{ name: 'New Adventure' }])
-		.select()
+		.insert([
+			{
+				name: 'New Adventure',
+				main_prompt: mainPrompt
+			}
+		])
+		.select('id, main_prompt')
 		.single();
 
 	if (!error && data?.id) {
 		setChatId(data.id);
 		localStorage.setItem('chatId', data.id);
-	}
 
-	setMessages([
-		{
-			role: 'system',
-			content:
-				'You are a roleplaying game narrator. Stay in character and describe scenes vividly.'
-		}
-	]);
+		// Use main_prompt from the new chat for the system message
+		setMessages([
+			{
+				role: 'system',
+				content: data.main_prompt || defaultPrompt
+			}
+		]);
+	} else {
+		console.error('Error creating new adventure:', error);
+		setMessages([
+			{
+				role: 'system',
+				content: defaultPrompt
+			}
+		]);
+	}
 }
 
 // Load existing messages for a chat

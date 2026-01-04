@@ -91,7 +91,7 @@ async function getLorebookData(chatId: string) {
 // ------------------------------
 // Helper: Build system prompt from session (and optionally lorebook fallback)
 // ------------------------------
-function buildSystemPrompt(basePrompt: string, sessionData: any, lorebookData: any = null) {
+async function buildSystemPrompt(basePrompt: string, sessionData: any, lorebookData: any = null, chatId: string) {
     let prompt = basePrompt.trim() + '\n\n';
     const { characters, places, quests, plot_points, history } = sessionData;
 
@@ -148,13 +148,15 @@ function buildSystemPrompt(basePrompt: string, sessionData: any, lorebookData: a
         prompt += `${lorebookData.lorebook.description}\n`;
     }
 
-    prompt += `
-Rules for Game Master:
-- Respect existing session lore (characters, places, quests) as accurate.
-- You may invent temporary NPCs, events, or locations to drive the story.
-- Temporary entities do not become permanent unless explicitly added to session lore.
-- Stay in character and narrate naturally.
-`;
+    // Fetch the main_prompt for this chat
+    const { data: chat } = await supabase
+        .from('chats')
+        .select('main_prompt')
+        .eq('id', chatId)
+        .single();
+    const mainPrompt = chat?.main_prompt || 'You are a roleplaying game narrator. Stay in character and describe scenes vividly.';
+
+    prompt += mainPrompt;
 
     return prompt;
 }
@@ -184,7 +186,7 @@ export async function POST({ request }) {
         // Build system prompt
         const enhancedMessages = [...messages];
         if (enhancedMessages[0].role === 'system') {
-            enhancedMessages[0].content = buildSystemPrompt(enhancedMessages[0].content, sessionData, lorebookData);
+            enhancedMessages[0].content = await buildSystemPrompt(enhancedMessages[0].content, sessionData, lorebookData, chatId);
         }
 
         // Generate AI response

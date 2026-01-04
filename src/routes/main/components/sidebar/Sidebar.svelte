@@ -44,6 +44,12 @@
 				Manage Lorebooks
 			</button>
 			<button
+				onclick={() => goto('/mainPrompt')}
+				class="w-full px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition"
+			>
+				Main Prompt
+			</button>
+			<button
 				onclick={() =>
 					newAdventure(
 						(id) => onChatIdChange(id),
