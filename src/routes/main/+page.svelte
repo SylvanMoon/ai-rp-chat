@@ -13,6 +13,7 @@
 		initializeChat
 	} from '$lib/chatStore';
 	import { createSidebarStore } from './components/sidebar/sidebar';
+	import Sidebar from './components/sidebar/Sidebar.svelte';
 
 	let input = $state('');
 	let loading = $state(false);
@@ -55,46 +56,18 @@
 
 <main class="flex min-h-screen bg-gray-900 text-white font-sans">
 	<!-- Sidebar -->
-	<aside class="bg-gray-800 border-r border-gray-700 transition-all duration-300 {sidebarOpen ? 'w-64' : 'w-0'} overflow-hidden">
-		<div class="p-4 {sidebarOpen ? 'block' : 'hidden'}">
-			<h2 class="text-xl font-bold mb-4">Menu</h2>
-			<div class="space-y-2">
-				<button
-					onclick={() => sidebar.goToLorebook()}
-					class="w-full px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition"
-				>
-					Manage Lorebooks
-				</button>
-				<button
-					onclick={() => sidebar.newAdventure((id) => chatId = id, (msgs) => messages = msgs)}
-					disabled={loading}
-					class="w-full px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed transition"
-				>
-					New Adventure
-				</button>
-				<button
-					onclick={() => sidebar.saveChat(chatId)}
-					disabled={!chatId}
-					class="w-full px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed transition"
-				>
-					Save Chat
-				</button>
-				<button
-					onclick={() => sidebar.duplicateChat(chatId, messages, (id) => chatId = id)}
-					disabled={!chatId || loading}
-					class="w-full px-4 py-2 bg-yellow-600 text-white font-semibold rounded-lg hover:bg-yellow-700 disabled:bg-gray-600 disabled:cursor-not-allowed transition"
-				>
-					Duplicate Chat
-				</button>
-				<button
-					onclick={() => sidebar.loadChats()}
-					class="w-full px-4 py-2 bg-purple-600 text-white font-semibold rounded-lg hover:bg-purple-700 transition"
-				>
-					Load Chats
-				</button>
-			</div>
-		</div>
-	</aside>
+	<Sidebar
+		{sidebarOpen}
+		{loading}
+		{chatId}
+		{messages}
+		{showLoadChats}
+		chats={sidebarChats}
+		onChatIdChange={(id) => chatId = id}
+		onMessagesChange={(msgs) => messages = msgs}
+		onShowLoadChatsChange={(show) => showLoadChats = show}
+		onChatsChange={(chs) => sidebarChats = chs}
+	/>
 
 	<!-- Main Content -->
 	<div class="flex-1 flex flex-col">
