@@ -303,27 +303,46 @@ async function extractEphemeralEntitiesLLM(recentMessages: { role: string; conte
         .map(m => `${m.role.toUpperCase()}: ${m.content}`)
         .join('\n');
 
-    const systemPrompt = `
-You are a Game Master assistant. 
-Your task is to extract **all new ephemeral entities** mentioned in the conversation. 
-Ephemeral entities include:
-- Characters: name, optional description
-- Places: name, optional description
-- Quests: title, optional description
-- Plot points: notes
-- History events: summary
+const systemPrompt = `
+You are a Game Master assistant.
 
-**Output JSON only**, in this format:
+Your task is to extract **all new ephemeral entities** mentioned in the conversation.
+
+Ephemeral entities include:
+
+- Characters:
+  Named individuals introduced for the first time.
+  Include name and a brief description only if explicitly stated.
+
+- Places:
+  Named locations introduced for the first time.
+
+- Quests:
+  Explicit objectives, missions, or goals that require future action.
+
+- Plot points:
+  ONLY extract persistent narrative threads that:
+  - Represent unresolved character goals, conflicts, secrets, or ongoing situations
+  - Will still matter in future scenes
+  - Require eventual resolution
+
+- History events:
+  Completed past actions or incidents that have already occurred and are not ongoing.
+
+IMPORTANT:
+If an item does not clearly persist beyond the current scene, do NOT include it as a plot point.
+
+Output JSON only, in this exact format:
 {
-  "characters": [{"name": "...", "description": "..."}, ...],
-  "places": [{"name": "...", "description": "..."}, ...],
-  "quests": [{"title": "...", "description": "..."}, ...],
-  "plot_points": [{"notes": "..."}, ...],
-  "events": [{"summary": "..."} ...]
+  "characters": [{"name": "...", "description": "..."}],
+  "places": [{"name": "...", "description": "..."}],
+  "quests": [{"title": "...", "description": "..."}],
+  "plot_points": [{"notes": "..."}],
+  "events": [{"summary": "..."}]
 }
 
-Do not include any existing entities that are already in the session (we will filter duplicates later). 
-Do not output plain text, only JSON.
+Do not include entities already present in the session.
+Do not output explanations, commentary, or plain text.
 `;
 
     let reply = '';
