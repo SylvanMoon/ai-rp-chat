@@ -294,6 +294,11 @@ export function startEdit(index: number, setEditingIndex: (index: number | null)
 export async function saveEdit(index: number, newContent: string, messages: Message[], setMessages: (messages: Message[]) => void, setEditingIndex: (index: number | null) => void) {
 	const msg = messages[index];
 	msg.content = newContent;
+	if (msg.role === 'assistant') {
+		if (!msg.variants) msg.variants = [msg.content];
+		const variantIndex = msg.selectedVariant ?? 0;
+		msg.variants[variantIndex] = newContent;
+	}
 	if (msg.id) {
 		const { error } = await supabase
 			.from('messages')
