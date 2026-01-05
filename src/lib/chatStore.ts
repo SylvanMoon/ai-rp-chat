@@ -319,7 +319,7 @@ export async function sendMessage(input: string, chatId: string | null, messages
 		const res = await fetch('/api/chat', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ chatId, messages: newMessages })
+			body: JSON.stringify({ chatId, messages: newMessages.map(msg => ({ id: msg.id, role: msg.role, content: msg.role === 'assistant' && msg.variants ? msg.variants[msg.selectedVariant || 0] : msg.content })) })
 		});
 
 		const data = await res.json();
@@ -344,7 +344,7 @@ export async function regenerateMessage(index: number, chatId: string | null, me
 		const res = await fetch('/api/chat/regenerate', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ chatId, messages: messagesUpToUser })
+			body: JSON.stringify({ chatId, messages: messagesUpToUser.map(msg => ({ id: msg.id, role: msg.role, content: msg.role === 'assistant' && msg.variants ? msg.variants[msg.selectedVariant || 0] : msg.content })) })
 		});
 
 		const data = await res.json();
