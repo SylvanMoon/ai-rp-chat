@@ -212,11 +212,11 @@ async function addEphemeralEntity(chatId: string, type: 'character' | 'place' | 
     try {
         // Store entity data as JSON in notes field, with null foreign key ID
         const notes = JSON.stringify(entityData);
-        const { error: insertError } = await supabase.from(table).insert({ 
-            chat_id: chatId, 
-            [column]: null, 
-            notes, 
-            ephemeral: true 
+        const { error: insertError } = await supabase.from(table).insert({
+            chat_id: chatId,
+            [column]: null,
+            notes,
+            ephemeral: true
         });
         if (insertError) console.error(`Insert ephemeral ${type} error:`, insertError);
     } catch (err) {
@@ -303,7 +303,7 @@ async function extractEphemeralEntitiesLLM(recentMessages: { role: string; conte
         .map(m => `${m.role.toUpperCase()}: ${m.content}`)
         .join('\n');
 
-const systemPrompt = `
+    const systemPrompt = `
 You are a Game Master assistant.
 
 Your task is to extract **all new ephemeral entities** mentioned in the conversation.
@@ -358,11 +358,12 @@ Do not output explanations, commentary, or plain text.
         });
 
         reply = completion.choices[0].message.content ?? '';
+        console.log("--------------------------------------")
         console.log("Raw LLM response for ephemeral extraction:", reply);
 
         // Extract JSON from markdown code block if present
         let jsonString = reply.trim();
-        
+
         // Try to extract JSON from code blocks
         const jsonBlockMatch = jsonString.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
         if (jsonBlockMatch) {
@@ -380,7 +381,7 @@ Do not output explanations, commentary, or plain text.
 
         // Clean up and validate we have content
         jsonString = jsonString.trim();
-        
+
         if (!jsonString || jsonString.length === 0) {
             console.log("No JSON found in LLM response");
             return null;
@@ -388,6 +389,7 @@ Do not output explanations, commentary, or plain text.
 
         // Attempt to parse JSON
         const parsed = JSON.parse(jsonString);
+        console.log("--------------------------------------")
         console.log("Successfully parsed ephemeral entities:", parsed);
         return parsed;
     } catch (err) {
@@ -547,7 +549,6 @@ Output JSON only:
 // POST handler
 // ------------------------------
 export async function POST({ request }) {
-    console.log("Received request to /api/chat/regenerate");
     const { chatId, messages } = await request.json();
 
     if (!chatId || !Array.isArray(messages)) {
@@ -557,6 +558,7 @@ export async function POST({ request }) {
     try {
         // Save latest user message
         const userMessage = messages[messages.length - 1];
+        console.log("--------------------------------------")
         console.log("Latest user message:", userMessage);
 
         if (userMessage.role === "user") {
@@ -567,6 +569,7 @@ export async function POST({ request }) {
             // Extract ephemeral entities from recent messages
             // ------------------------------
             const recentMessages = await getMessagesSinceLastUser(chatId); // include user + AI
+            console.log("--------------------------------------")
             console.log("Recent messages for ephemeral extraction:", recentMessages);
             const ephemeralData = await extractEphemeralEntitiesLLM(recentMessages);
             await insertEphemeralData(chatId, ephemeralData);
@@ -576,6 +579,7 @@ export async function POST({ request }) {
             // ------------------------------
             const messagesSinceLastHistory = await getMessagesSinceLastHistory(chatId);
             if (messagesSinceLastHistory.length >= SUMMARY_THRESHOLD) {
+                console.log("--------------------------------------")
                 console.log(`Generating session summary for ${messagesSinceLastHistory.length} messages`);
                 await summarizeSessionHistory(chatId, messagesSinceLastHistory);
             }
@@ -591,16 +595,23 @@ export async function POST({ request }) {
         }
 
         // Log the full prompt being sent to LLM
+        console.log("--------------------------------------")
         console.log("Full prompt being sent to LLM:", JSON.stringify(enhancedMessages, null, 2));
 
         // Generate AI response
         const completion = await client.chat.completions.create({
             model: "deepseek-ai/deepseek-r1",
-
             messages: enhancedMessages,
-            temperature: 0.6,
-            top_p: 0.7,
-            max_tokens: 1024
+            temperature: 0.8,
+            top_p: 0.9,
+            max_tokens: 2048,
+            frequency_penalty: 0.2,
+            presence_penalty: 0.1,
+            stop: [
+                "\nYou:",
+                "\nUser:",
+                "\n<USER>:"
+            ]
         });
 
         const aiReply = completion.choices[0].message.content ?? "";
