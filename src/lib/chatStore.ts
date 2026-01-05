@@ -324,7 +324,21 @@ export async function sendMessage(input: string, chatId: string | null, messages
 
 		const data = await res.json();
 
-		setMessages([...newMessages, { role: 'assistant' as const, content: data.reply, variants: [data.reply], selectedVariant: 0 }]);
+		const assistantMessage: Message = { role: 'assistant' as const, content: data.reply, variants: [data.reply], selectedVariant: 0 };
+		setMessages([...newMessages, assistantMessage]);
+
+		// Fetch the id of the newly saved assistant message
+		const { data: lastAssistant } = await supabase
+			.from('messages')
+			.select('id')
+			.eq('chat_id', chatId)
+			.eq('role', 'assistant')
+			.order('created_at', { ascending: false })
+			.limit(1);
+		if (lastAssistant && lastAssistant[0]) {
+			assistantMessage.id = lastAssistant[0].id;
+			setMessages([...newMessages, assistantMessage]);
+		}
 	} catch (err) {
 		console.error(err);
 		setMessages([...newMessages, { role: 'assistant' as const, content: '⚠️ Error talking to AI.', variants: ['⚠️ Error talking to AI.'], selectedVariant: 0 }]);
@@ -356,6 +370,13 @@ export async function regenerateMessage(index: number, chatId: string | null, me
 		msg.variants.push(newVariant);
 		msg.selectedVariant = msg.variants.length - 1;
 		msg.content = newVariant;
+		if (msg.id) {
+			const { error } = await supabase
+				.from('messages')
+				.update({ content: msg.content })
+				.eq('id', msg.id);
+			if (error) console.error('Error updating message:', error);
+		}
 		
 		setMessages(newMessages);
 	} catch (err) {
@@ -366,6 +387,13 @@ export async function regenerateMessage(index: number, chatId: string | null, me
 		msg.variants.push('⚠️ Error regenerating message.');
 		msg.selectedVariant = msg.variants.length - 1;
 		msg.content = '⚠️ Error regenerating message.';
+		if (msg.id) {
+			const { error } = await supabase
+				.from('messages')
+				.update({ content: msg.content })
+				.eq('id', msg.id);
+			if (error) console.error('Error updating message:', error);
+		}
 		setMessages(newMessages);
 	} finally {
 		setLoading(false);
