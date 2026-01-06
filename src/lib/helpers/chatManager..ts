@@ -1,13 +1,5 @@
 import { supabase } from '$lib/client/supabaseClient';
-import { loadMessages } from './messageManager';
-
-export type Message = {
-	id?: number;
-	role: 'system' | 'user' | 'assistant';
-	content: string;
-	variants?: string[]; // for assistant messages that can be regenerated
-	selectedVariant?: number; // index of selected variant
-};
+import { loadMessages, type Message } from './messageManager';
 
 //---------------------------------
 // List all chats

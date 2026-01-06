@@ -1,6 +1,12 @@
 import { supabase } from "$lib/client/supabaseClient";
-import type { Message } from "./chatManager.";
 
+export type Message = {
+	id?: number;
+	role: 'system' | 'user' | 'assistant';
+	content: string;
+	variants?: string[]; // for assistant messages that can be regenerated
+	selectedVariant?: number; // index of selected variant
+};
 
 // ------------------------------
 // Save a chat message
@@ -33,21 +39,44 @@ export async function saveMessage(
 }
 
 // ------------------------------
-// Save a chat message
+// delete a chat message
 // ------------------------------
-export async function deleteMessage(index: number, messages: Message[], setMessages: (messages: Message[]) => void) {
-    const msg = messages[index];
-    if (msg.id) {
-        const { error } = await supabase
-            .from('messages')
-            .delete()
-            .eq('id', msg.id);
-        if (error) console.error('Error deleting message:', error);
+// export async function deleteMessage(index: number, messages: Message[], setMessages: (messages: Message[]) => void) { const msg = messages[index]; if (msg.id) { const { error } = await supabase .from('messages') .delete() .eq('id', msg.id); if (error) console.error('Error deleting message:', error); } const newMessages = [...messages]; newMessages.splice(index, 1); setMessages(newMessages); }
+
+export async function deleteMessage(
+  chatId: string,
+  index: number,
+  messages: Message[],
+  setMessages: (messages: Message[]) => void
+) {
+  const msg = messages[index];
+  if (!msg) return;
+
+  // Delete from Supabase
+  if (msg.id) {
+    const { error } = await supabase
+      .from('messages')
+      .delete()
+      .eq('id', msg.id);
+
+    if (error) {
+      console.error('Error deleting message:', error);
+      return;
     }
-    const newMessages = [...messages];
-    newMessages.splice(index, 1);
-    setMessages(newMessages);
+  }
+
+  // Decrement assistant_turn if assistant message
+  if (msg.role === 'assistant') {
+    const { error: rpcError } = await supabase.rpc('decrement_assistant_turn', { chat_id: chatId });
+    if (rpcError) console.error('Failed to decrement assistant_turn:', rpcError);
+  }
+
+  // Update local state
+  const newMessages = [...messages];
+  newMessages.splice(index, 1);
+  setMessages(newMessages);
 }
+
 
 
 //---------------------------------

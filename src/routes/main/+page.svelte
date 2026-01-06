@@ -1,6 +1,5 @@
 <script lang="ts">
 	import Markdown from '$lib/Markdown.svelte';
-	import type { Message } from '$lib/helpers/chatManager.';
 	import { mdiPencil, mdiTrashCan, mdiRefresh, mdiChevronLeft, mdiChevronRight } from '@mdi/js';
 	import {
 		initializeChat,
@@ -10,7 +9,7 @@
 	import { supabase } from '$lib/client/supabaseClient';
 	import { createSidebarStore } from './components/sidebar/sidebar';
 	import Sidebar from './components/sidebar/Sidebar.svelte';
-	import { deleteMessage, regenerateMessage, saveEdit, selectVariant, sendMessage, startEdit } from '$lib/helpers/messageManager';
+	import { deleteMessage, regenerateMessage, saveEdit, selectVariant, sendMessage, startEdit, type Message } from '$lib/helpers/messageManager';
 
 	let input = $state('');
 	let loading = $state(false);
@@ -310,7 +309,7 @@ Your goal: Direct the story like a puppet master, introducing events, NPCs, plot
 												</button>
 											{/if}
 											<button
-												onclick={() => deleteMessage(i, messages, (msgs) => (messages = msgs))}
+												onclick={() => chatId && deleteMessage(chatId, i, messages, (msgs) => (messages = msgs))}
 												title="Delete"
 												class="w-8 h-8 flex items-center justify-center rounded-full bg-white bg-opacity-10 hover:bg-opacity-20 transition"
 												><svg class="w-5 h-5" viewBox="0 0 24 24"><path fill="currentColor" d="{mdiTrashCan}" /></svg></button
