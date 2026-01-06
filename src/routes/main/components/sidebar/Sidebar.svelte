@@ -4,9 +4,9 @@
 		listChats,
 		saveChat,
 		duplicateChat
-	} from '$lib/chatStore';
+	} from '$lib/helpers/chatManager.';
 	import { goto } from '$app/navigation';
-	import type { Message } from '$lib/chatStore';
+	import type { Message } from '$lib/helpers/chatManager.';
 
 	interface Props {
 		sidebarOpen: boolean;

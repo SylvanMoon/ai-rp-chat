@@ -1,13 +1,15 @@
 import { json } from "@sveltejs/kit";
-import OpenAI from "openai";
-import { NVIDIA_API_KEY } from '$env/static/private';
-import { supabase } from '$lib/supabaseClient';
-import { getSessionLoreSnapshot, buildSystemPrompt } from '$lib/sessionHelpers';
+import { client } from '$lib/server/openaiClient';
+import { supabase } from '$lib/client/supabaseClient';
+import { addSessionCharacter, getSessionCharacter, updateSessionCharacter } from "$lib/helpers/sessionCharacterManager";
+import { addSessionPlace, getSessionPlace, updateSessionPlace } from "$lib/helpers/sessionPlaceManager";
+import { addSessionPlotPoint, getSessionPlotPoint, updateSessionPlotPoint } from "$lib/helpers/sessionPlotPointsManager";
+import { buildSystemPrompt, getSessionLoreSnapshot } from "$lib/helpers/lorebookManager";
+import { runPromotionAndDecay } from "$lib/helpers/runPromotionAndDecay";
+import { extractEphemeralEntitiesLLM } from "$lib/helpers/extractEphemeralEntitiesLLM";
+import { saveMessage } from "$lib/helpers/messageManager";
 
-const client = new OpenAI({
-    baseURL: "https://integrate.api.nvidia.com/v1",
-    apiKey: NVIDIA_API_KEY
-});
+
 
 const SUMMARY_THRESHOLD = 20;
 const PLOT_POINT_THRESHOLD = 6;
@@ -69,51 +71,53 @@ interface SessionLoreData {
     history: SessionHistoryEvent[];
 }
 
-// ------------------------------
-// Save a chat message
-// ------------------------------
-async function saveMessage(chatId: string, role: string, content: string) {
-    const { error } = await supabase
-        .from("messages")
-        .insert([{ chat_id: chatId, role, content }]);
-    if (error) console.error("Supabase saveMessage error:", error);
-}
+// // ------------------------------
+// // Save a chat message
+// // ------------------------------
+// async function saveMessage(chatId: string, role: string, content: string) {
+//     const { error } = await supabase
+//         .from("messages")
+//         .insert([{ chat_id: chatId, role, content }]);
+//     if (error) console.error("Supabase saveMessage error:", error);
+// }
+
+
 
 // ------------------------------
 // Add ephemeral entity
 // ------------------------------
-// async function addEphemeralEntity(chatId: string, type: 'character' | 'place' | 'quest', entityData: any) {
-//     const tableMap = { character: 'session_characters', place: 'session_places', quest: 'session_quests' } as const;
-//     const columnMap = { character: 'character_id', place: 'place_id', quest: 'quest_id' } as const;
-//     const table = tableMap[type];
-//     const column = columnMap[type];
+async function addEphemeralEntity(chatId: string, type: 'character' | 'place' | 'quest', entityData: any) {
+    const tableMap = { character: 'session_characters', place: 'session_places', quest: 'session_quests' } as const;
+    const columnMap = { character: 'character_id', place: 'place_id', quest: 'quest_id' } as const;
+    const table = tableMap[type];
+    const column = columnMap[type];
 
-//     try {
-//         // Store entity data as JSON in notes field, with null foreign key ID
-//         const notes = JSON.stringify(entityData);
-//         const { error: insertError } = await supabase.from(table).insert({
-//             chat_id: chatId,
-//             [column]: null,
-//             notes,
-//             ephemeral: true
-//         });
-//         if (insertError) console.error(`Insert ephemeral ${type} error:`, insertError);
-//     } catch (err) {
-//         console.error(`Unexpected error in addEphemeralEntity (${type}):`, err);
-//     }
-// }
+    try {
+        // Store entity data as JSON in notes field, with null foreign key ID
+        const notes = JSON.stringify(entityData);
+        const { error: insertError } = await supabase.from(table).insert({
+            chat_id: chatId,
+            [column]: null,
+            notes,
+            ephemeral: true
+        });
+        if (insertError) console.error(`Insert ephemeral ${type} error:`, insertError);
+    } catch (err) {
+        console.error(`Unexpected error in addEphemeralEntity (${type}):`, err);
+    }
+}
 
 // ------------------------------
 // Add ephemeral plot point
 // ------------------------------
-// async function addEphemeralPlotPoint(chatId: string, notes: string, status: string = 'active') {
-//     try {
-//         const { error } = await supabase.from('session_plot_points').insert({ chat_id: chatId, notes, status, ephemeral: true });
-//         if (error) console.error('Error adding ephemeral plot point:', error);
-//     } catch (err) {
-//         console.error('Unexpected error in addEphemeralPlotPoint:', err);
-//     }
-// }
+async function addEphemeralPlotPoint(chatId: string, notes: string, status: string = 'active') {
+    try {
+        const { error } = await supabase.from('session_plot_points').insert({ chat_id: chatId, notes, status, ephemeral: true });
+        if (error) console.error('Error adding ephemeral plot point:', error);
+    } catch (err) {
+        console.error('Unexpected error in addEphemeralPlotPoint:', err);
+    }
+}
 
 // ------------------------------
 // Add history event
@@ -130,160 +134,48 @@ async function addHistoryEvent(chatId: string, summary: string, notes?: string) 
 // ------------------------------
 // Fetch messages since the previous user message
 // ------------------------------
-// async function getMessagesSinceLastUser(chatId: string): Promise<{ role: string; content: string }[]> {
-//     try {
-//         // Get all messages for this chat ordered by insertion
-//         const { data: messages, error } = await supabase
-//             .from('messages')
-//             .select('role, content, created_at')
-//             .eq('chat_id', chatId)
-//             .order('created_at', { ascending: true });
+async function getMessagesSinceLastUser(chatId: string): Promise<{ role: string; content: string }[]> {
+    try {
+        // Get all messages for this chat ordered by insertion
+        const { data: messages, error } = await supabase
+            .from('messages')
+            .select('role, content, created_at')
+            .eq('chat_id', chatId)
+            .order('created_at', { ascending: true });
 
-//         if (error) {
-//             console.error('Error fetching messages for ephemeral parsing:', error);
-//             return [];
-//         }
+        if (error) {
+            console.error('Error fetching messages for ephemeral parsing:', error);
+            return [];
+        }
 
-//         if (!messages || messages.length === 0) return [];
+        if (!messages || messages.length === 0) return [];
 
-//         // Find the index of the last user message
-//         let lastUserIndex = -1;
-//         for (let i = messages.length - 1; i >= 0; i--) {
-//             if (messages[i].role === 'user') {
-//                 lastUserIndex = i;
-//                 break;
-//             }
-//         }
+        // Find the index of the last user message
+        let lastUserIndex = -1;
+        for (let i = messages.length - 1; i >= 0; i--) {
+            if (messages[i].role === 'user') {
+                lastUserIndex = i;
+                break;
+            }
+        }
 
-//         if (lastUserIndex === -1) {
-//             // No previous user messages, return all messages
-//             return messages.map(m => ({ role: m.role, content: m.content }));
-//         }
+        if (lastUserIndex === -1) {
+            // No previous user messages, return all messages
+            return messages.map(m => ({ role: m.role, content: m.content }));
+        }
 
-//         // Include the last AI message before the last user (if it exists)
-//         const startIndex = Math.max(0, lastUserIndex - 1);
+        // Include the last AI message before the last user (if it exists)
+        const startIndex = Math.max(0, lastUserIndex - 1);
 
-//         // Return messages from that index onward
-//         return messages.slice(startIndex).map(m => ({ role: m.role, content: m.content }));
-//     } catch (err) {
-//         console.error('Unexpected error in getMessagesSinceLastUser:', err);
-//         return [];
-//     }
-// }
+        // Return messages from that index onward
+        return messages.slice(startIndex).map(m => ({ role: m.role, content: m.content }));
+    } catch (err) {
+        console.error('Unexpected error in getMessagesSinceLastUser:', err);
+        return [];
+    }
+}
 
-// ------------------------------
-// Helper: Extract ephemeral entities using LLM
-// ------------------------------
-// async function extractEphemeralEntitiesLLM(recentMessages: { role: string; content: string }[]) {
-//     if (!recentMessages.length) return null;
 
-//     // Build a single string for context
-//     const conversation = recentMessages
-//         .map(m => `${m.role.toUpperCase()}: ${m.content}`)
-//         .join('\n');
-
-//     const systemPrompt = `
-// You are a Game Master assistant.
-
-// Your task is to extract **all new ephemeral entities** mentioned in the conversation.
-
-// Ephemeral entities include:
-
-// - Characters:
-//   Named individuals introduced for the first time.
-//   Include name and a brief description only if explicitly stated.
-
-// - Places:
-//   Named locations introduced for the first time.
-
-// - Quests:
-//   Explicit objectives, missions, or goals that require future action.
-
-// - Plot points MUST meet ALL criteria:
-//   Explicitly stated or clearly implied as ongoing
-//   Referenced as unresolved, hidden, planned, or threatened
-//   Would still matter if the next scene happens days later
-
-//   DO NOT extract:
-//   Emotions, moods, or internal thoughts
-//   Vague tension or atmosphere
-//   One-off reactions or dialogue beats
-//   Speculation without commitment
-
-// - History events:
-//   Completed past actions or incidents that have already occurred and are not ongoing.
-
-// IMPORTANT:
-// If an item does not clearly persist beyond the current scene, do NOT include it as a plot point.
-
-// Output JSON only, in this exact format:
-// {
-//   "characters": [{"name": "...", "description": "..."}],
-//   "places": [{"name": "...", "description": "..."}],
-//   "quests": [{"title": "...", "description": "..."}],
-//   "plot_points": [{"notes": "..."}],
-//   "events": [{"summary": "..."}]
-// }
-
-// Do not include entities already present in the session.
-// Do not output explanations, commentary, or plain text.
-// Before finalizing output, remove any item that could reasonably be forgotten without affecting future scenes.
-
-// `;
-
-//     let reply = '';
-//     try {
-//         const completion = await client.chat.completions.create({
-//             model: "deepseek-ai/deepseek-r1",
-//             messages: [
-//                 { role: "system", content: systemPrompt },
-//                 { role: "user", content: conversation }
-//             ],
-//             temperature: 0,
-//             max_tokens: 1024
-//         });
-
-//         reply = completion.choices[0].message.content ?? '';
-//         console.log("--------------------------------------")
-//         console.log("Raw LLM response for ephemeral extraction:", reply);
-
-//         // Extract JSON from markdown code block if present
-//         let jsonString = reply.trim();
-
-//         // Try to extract JSON from code blocks
-//         const jsonBlockMatch = jsonString.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
-//         if (jsonBlockMatch) {
-//             jsonString = jsonBlockMatch[1];
-//         } else if (jsonString.startsWith('```')) {
-//             // Remove any code block markers
-//             jsonString = jsonString.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
-//         }
-
-//         // Try to find JSON object in the response
-//         const jsonMatch = jsonString.match(/\{[\s\S]*\}/);
-//         if (jsonMatch) {
-//             jsonString = jsonMatch[0];
-//         }
-
-//         // Clean up and validate we have content
-//         jsonString = jsonString.trim();
-
-//         if (!jsonString || jsonString.length === 0) {
-//             console.log("No JSON found in LLM response");
-//             return null;
-//         }
-
-//         // Attempt to parse JSON
-//         const parsed = JSON.parse(jsonString);
-//         console.log("--------------------------------------")
-//         console.log("Successfully parsed ephemeral entities:", parsed);
-//         return parsed;
-//     } catch (err) {
-//         console.error("Failed to extract ephemeral entities:", err);
-//         console.error("Attempted to parse:", reply?.substring(0, 500));
-//         return null;
-//     }
-// }
 
 // ------------------------------
 // Helper: Insert ephemeral data into session tables
@@ -335,6 +227,93 @@ async function addHistoryEvent(chatId: string, summary: string, notes?: string) 
 //         }
 //     }
 // }
+
+async function insertEphemeralData(chatId: string, data: any) {
+    if (!data) return;
+
+    // ---------------- Characters ----------------
+    if (data.characters?.length) {
+        for (const c of data.characters) {
+            try {
+                // Check if character already exists in session
+                const existing = await getSessionCharacter(chatId, c.name);
+                if (existing) {
+                    // Reinforce
+                    await updateSessionCharacter(existing.id, {
+                        reinforcement_count: existing.reinforcement_count + 1,
+                        last_mentioned_at: new Date()
+                    });
+                } else {
+                    // Insert as candidate
+                    await addSessionCharacter(chatId, {
+                        character_id: c.character_id ?? null,
+                        notes: c.description ?? '',
+                        state: 'candidate',
+                        reinforcement_count: 1,
+                        importance: 1,
+                        last_mentioned_at: new Date(),
+                        introduced_at: new Date()
+                    });
+                }
+            } catch (err) {
+                console.error("Error inserting character:", err);
+            }
+        }
+    }
+
+    // ---------------- Places ----------------
+    if (data.places?.length) {
+        for (const p of data.places) {
+            try {
+                const existing = await getSessionPlace(chatId, p.name);
+                if (existing) {
+                    await updateSessionPlace(existing.id, {
+                        reinforcement_count: existing.reinforcement_count + 1,
+                        last_mentioned_at: new Date()
+                    });
+                } else {
+                    await addSessionPlace(chatId, {
+                        notes: p.description ?? '',
+                        state: 'candidate',
+                        reinforcement_count: 1,
+                        importance: 1,
+                        last_mentioned_at: new Date(),
+                        introduced_at: new Date()
+                    });
+                }
+            } catch (err) {
+                console.error("Error inserting place:", err);
+            }
+        }
+    }
+
+    // ---------------- Plot Points ----------------
+    if (data.plot_points?.length) {
+        for (const pp of data.plot_points) {
+            try {
+                const existing = await getSessionPlotPoint(chatId, pp.notes);
+                if (existing) {
+                    await updateSessionPlotPoint(existing.id, {
+                        reinforcement_count: existing.reinforcement_count + 1,
+                        last_mentioned_at: new Date()
+                    });
+                } else {
+                    await addSessionPlotPoint(chatId, {
+                        notes: pp.notes,
+                        state: 'candidate',
+                        reinforcement_count: 1,
+                        importance: 1,
+                        last_mentioned_at: new Date(),
+                        introduced_at: new Date()
+                    });
+                }
+            } catch (err) {
+                console.error("Error inserting plot point:", err);
+            }
+        }
+    }
+}
+
 
 // ------------------------------
 // Fetch messages since the last session_history entry
@@ -454,11 +433,12 @@ export async function POST({ request }) {
             // Only after a user message:
             // Extract ephemeral entities from recent messages
             // ------------------------------
-            // const recentMessages = await getMessagesSinceLastUser(chatId); // include user + AI
-            // console.log("--------------------------------------")
-            // console.log("Recent messages for ephemeral extraction:", recentMessages);
-            // const ephemeralData = await extractEphemeralEntitiesLLM(recentMessages);
-            // await insertEphemeralData(chatId, ephemeralData);
+            const recentMessages = await getMessagesSinceLastUser(chatId); // include user + AI
+            console.log("--------------------------------------")
+            console.log("Recent messages for ephemeral extraction:", recentMessages);
+            const ephemeralData = await extractEphemeralEntitiesLLM(recentMessages);
+            await insertEphemeralData(chatId, ephemeralData);
+            // await runPromotionAndDecay(chatId, assistantTurn)
 
             // ------------------------------
             // Check if we should summarize
@@ -488,10 +468,10 @@ export async function POST({ request }) {
         const completion = await client.chat.completions.create({
             model: "deepseek-ai/deepseek-r1",
             messages: enhancedMessages,
-            temperature: 0.8,
-            top_p: 0.9,
+            temperature: 1.8,
+            top_p: 0.98,
             max_tokens: 2048,
-            frequency_penalty: 0.2,
+            frequency_penalty: 0.15,
             presence_penalty: 0.1,
             stop: [
                 "\nYou:",

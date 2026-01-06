@@ -1,4 +1,4 @@
-import { supabase } from '$lib/supabaseClient';
+import { supabase } from '$lib/client/supabaseClient';
 
 // ------------------------------
 // Get session lore snapshot

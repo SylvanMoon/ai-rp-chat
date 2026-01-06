@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { supabase } from '$lib/supabaseClient';
+	import { supabase } from '$lib/client/supabaseClient';
 	import { onMount } from 'svelte';
 
     let mainPrompt = $state(`<Content Protocol>

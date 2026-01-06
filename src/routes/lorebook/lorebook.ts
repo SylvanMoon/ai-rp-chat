@@ -1,4 +1,4 @@
-import { supabase } from '$lib/supabaseClient';
+import { supabase } from '$lib/client/supabaseClient';
 
 export async function loadAllLorebooks() {
 	const { data, error } = await supabase

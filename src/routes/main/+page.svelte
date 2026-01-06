@@ -1,21 +1,16 @@
 <script lang="ts">
 	import Markdown from '$lib/Markdown.svelte';
-	import type { Message } from '$lib/chatStore';
+	import type { Message } from '$lib/helpers/chatManager.';
 	import { mdiPencil, mdiTrashCan, mdiRefresh, mdiChevronLeft, mdiChevronRight } from '@mdi/js';
 	import {
-		deleteMessage,
-		startEdit,
-		saveEdit,
-		sendMessage,
-		regenerateMessage,
-		selectVariant,
 		initializeChat,
 		setChatLorebook,
 		getChatLorebook
-	} from '$lib/chatStore';
-	import { supabase } from '$lib/supabaseClient';
+	} from '$lib/helpers/chatManager.';
+	import { supabase } from '$lib/client/supabaseClient';
 	import { createSidebarStore } from './components/sidebar/sidebar';
 	import Sidebar from './components/sidebar/Sidebar.svelte';
+	import { deleteMessage, regenerateMessage, saveEdit, selectVariant, sendMessage, startEdit } from '$lib/helpers/messageManager';
 
 	let input = $state('');
 	let loading = $state(false);

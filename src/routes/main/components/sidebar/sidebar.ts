@@ -6,9 +6,9 @@ import {
 	deleteChat,
 	duplicateChat,
 	loadMessages
-} from '$lib/chatStore';
+} from '../../../../lib/helpers/chatManager.';
 import { goto } from '$app/navigation';
-import type { Message } from '$lib/chatStore';
+import type { Message } from '../../../../lib/helpers/chatManager.';
 
 export function createSidebarStore() {
 	const sidebarOpen = writable(false);

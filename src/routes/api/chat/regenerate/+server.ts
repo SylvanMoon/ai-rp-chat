@@ -1,7 +1,7 @@
 import { json } from "@sveltejs/kit";
 import OpenAI from "openai";
 import { NVIDIA_API_KEY } from '$env/static/private';
-import { getLorebookData, getSessionLoreSnapshot, buildSystemPrompt } from '$lib/sessionHelpers';
+import { buildSystemPrompt, getLorebookData, getSessionLoreSnapshot } from "$lib/helpers/lorebookManager";
 
 const client = new OpenAI({
     baseURL: "https://integrate.api.nvidia.com/v1",
