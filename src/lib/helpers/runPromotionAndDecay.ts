@@ -4,6 +4,7 @@ import { shouldPromoteCharacter, shouldPromotePlace, shouldPromotePlotPoint } fr
 import { updateSessionCharacter } from './sessionCharacterManager';
 import { updateSessionPlace } from './sessionPlaceManager';
 import { updateSessionPlotPoint } from './sessionPlotPointsManager';
+import { turnsSince } from './turnsSince';
 
 export async function runPromotionAndDecay(chatId: string, currentAssistantTurn: number) {
  

@@ -263,3 +263,92 @@ export async function selectVariant(index: number, variantIndex: number, message
 		setMessages(newMessages);
 	}
 }
+
+// ------------------------------
+// Fetch messages since the last session_history entry
+// ------------------------------
+export async function getMessagesSinceLastHistory(chatId: string): Promise<{ role: string; content: string; created_at: string }[]> {
+    try {
+        // Get the latest history timestamp
+        const { data: historyRows, error: historyError } = await supabase
+            .from('session_history')
+            .select('created_at')
+            .eq('chat_id', chatId)
+            .order('created_at', { ascending: false })
+            .limit(1);
+
+        if (historyError) {
+            console.error('Error fetching last session_history:', historyError);
+            return [];
+        }
+
+        const lastHistoryTime = historyRows?.[0]?.created_at || null;
+
+        // Fetch messages after last history timestamp
+        let query = supabase
+            .from('messages')
+            .select('role, content, created_at')
+            .eq('chat_id', chatId)
+            .order('created_at', { ascending: true });
+
+        if (lastHistoryTime) {
+            query = query.gt('created_at', lastHistoryTime);
+        }
+
+        const { data: messages, error: messagesError } = await query;
+
+        if (messagesError) {
+            console.error('Error fetching messages since last history:', messagesError);
+            return [];
+        }
+
+        return messages ?? [];
+    } catch (err) {
+        console.error('Unexpected error in getMessagesSinceLastHistory:', err);
+        return [];
+    }
+}
+
+// ------------------------------
+// Fetch messages since the previous user message
+// ------------------------------
+export async function getMessagesSinceLastUser(chatId: string): Promise<{ role: string; content: string }[]> {
+    try {
+        // Get all messages for this chat ordered by insertion
+        const { data: messages, error } = await supabase
+            .from('messages')
+            .select('role, content, created_at')
+            .eq('chat_id', chatId)
+            .order('created_at', { ascending: true });
+
+        if (error) {
+            console.error('Error fetching messages for ephemeral parsing:', error);
+            return [];
+        }
+
+        if (!messages || messages.length === 0) return [];
+
+        // Find the index of the last user message
+        let lastUserIndex = -1;
+        for (let i = messages.length - 1; i >= 0; i--) {
+            if (messages[i].role === 'user') {
+                lastUserIndex = i;
+                break;
+            }
+        }
+
+        if (lastUserIndex === -1) {
+            // No previous user messages, return all messages
+            return messages.map(m => ({ role: m.role, content: m.content }));
+        }
+
+        // Include the last AI message before the last user (if it exists)
+        const startIndex = Math.max(0, lastUserIndex - 1);
+
+        // Return messages from that index onward
+        return messages.slice(startIndex).map(m => ({ role: m.role, content: m.content }));
+    } catch (err) {
+        console.error('Unexpected error in getMessagesSinceLastUser:', err);
+        return [];
+    }
+}
