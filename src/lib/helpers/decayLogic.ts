@@ -1,10 +1,10 @@
-import { TURN_THRESHOLDS } from "$lib/constants/constants";
+import { TURN_THRESHOLDS } from "$lib/constants/promotion";
 
 export function decayPlotPoint(pp: any, turnsIdle: number) {
-  if (pp.state === "active" && turnsIdle >= TURN_THRESHOLDS.plot_point.fade_after) {
-    return "fading";
+  if (pp.state === "active" && turnsIdle >= TURN_THRESHOLDS.plot_point.inactive_after) {
+    return "inactive";
   }
-  if (pp.state === "fading" && turnsIdle >= TURN_THRESHOLDS.plot_point.archive_after) {
+  if (pp.state === "inactive" && turnsIdle >= TURN_THRESHOLDS.plot_point.archive_after) {
     return "archived";
   }
   return null;

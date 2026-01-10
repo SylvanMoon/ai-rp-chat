@@ -4,59 +4,50 @@ import { supabase } from '$lib/client/supabaseClient';
 // Get session lore snapshot
 // ------------------------------
 export async function getSessionLoreSnapshot(chatId: string) {
-    // const [
-    //     charactersRes,
-    //     placesRes,
-    //     questsRes,
-    //     plotPointsRes,
-    //     historyRes
-    // ] = await Promise.all([
-    //     supabase.from('session_characters')
-    //         .select(`notes, ephemeral, lore_characters(id,name,description,relationships,aliases)`)
-    //         .eq('chat_id', chatId),
-    //     supabase.from('session_places')
-    //         .select(`notes, ephemeral, lore_places(id,name,description)`)
-    //         .eq('chat_id', chatId),
-    //     supabase.from('session_quests')
-    //         .select(`status, notes, ephemeral, lore_quests(id,title,description)`)
-    //         .eq('chat_id', chatId),
-    //     supabase.from('session_plot_points')
-    //         .select(`id, notes, status, ephemeral`)
-    //         .eq('chat_id', chatId),
-    //     supabase.from('session_history')
-    //         .select(`id, timestamp, summary, notes`)
-    //         .eq('chat_id', chatId)
-    //         .order('timestamp', { ascending: true })
-    // ]);
+    // --------------------------
+    // Fetch characters, places, plot points
+    // --------------------------
+    const [
+        { data: characters = [], error: charErr },
+        { data: places = [], error: placeErr },
+        { data: plot_points = [], error: plotErr },
+        { data: lorebookData = [] } = { data: [] },
+    ] = await Promise.all([
+        supabase
+            .from('session_characters')
+            .select('id, character_id, name, description, state, reinforcement_count, last_mentioned, last_mentioned_turn'),
+        supabase
+            .from('session_places')
+            .select('id, place_id, name, description, state, reinforcement_count, last_mentioned, last_mentioned_turn'),
+        supabase
+            .from('session_plot_points')
+            .select('id, title, description, state, reinforcement_count, importance, last_mentioned, last_mentioned_turn'),
+        supabase
+            .from('lorebooks')
+            .select('*')
+            .eq('chat_id', chatId)
+            .single(),
+        supabase
+            .from('session_history')
+            .select('id, timestamp, summary, notes')
+            .eq('chat_id', chatId)
+            .order('timestamp', { ascending: true })
+    ]);
 
-    // return {
-    //     characters: charactersRes.data?.map(r => ({
-    //         ...(r.lore_characters as any),
-    //         notes: r.notes,
-    //         ephemeral: r.ephemeral || false
-    //     })) ?? [],
-    //     places: placesRes.data?.map(r => ({
-    //         ...(r.lore_places as any),
-    //         notes: r.notes,
-    //         ephemeral: r.ephemeral || false
-    //     })) ?? [],
-    //     quests: questsRes.data?.map(r => ({
-    //         ...(r.lore_quests as any),
-    //         status: r.status,
-    //         notes: r.notes,
-    //         ephemeral: r.ephemeral || false
-    //     })) ?? [],
-    //     plot_points: plotPointsRes.data ?? [],
-    //     history: historyRes.data ?? []
-    // };
+    if (charErr || placeErr || plotErr) {
+        console.error('Failed to fetch session data', { charErr, placeErr, plotErr });
+    }
+
+    // --------------------------
+    // Mark ephemeral for new entities (state === candidate)
+    // --------------------------
+    const markEphemeral = (items: any[]) => items.map(i => ({ ...i, ephemeral: i.state === 'candidate' }));
 
     return {
-        lorebook: null,
-        characters: [],
-        places: [],
-        quests: [],
-        plot_points: [],
-        history: []
+        lorebook: lorebookData ?? null,
+        characters: markEphemeral(characters || []),
+        places: markEphemeral(places || []),
+        plot_points: markEphemeral(plot_points || []),
     };
 }
 
@@ -94,7 +85,7 @@ export async function getLorebookData(chatId: string) {
 // ------------------------------
 export async function buildSystemPrompt(basePrompt: string, sessionData: any, chatId: string, lorebookData: any = null) {
     let prompt = basePrompt.trim() + '\n\n';
-    const { lorebook, characters, places, quests, plot_points, history } = sessionData;
+    const { lorebook, characters, places, plot_points } = sessionData;
 
     if (lorebook) prompt += `Setting: ${lorebook.name}\n\n`;
 
@@ -117,15 +108,6 @@ export async function buildSystemPrompt(basePrompt: string, sessionData: any, ch
         prompt += '\n';
     }
 
-    if (quests?.length) {
-        prompt += 'ACTIVE QUESTS:\n';
-        quests.forEach((q: any) => {
-            prompt += `- ${q.title}: ${q.description} (Status: ${q.status})\n`;
-            if (q.notes) prompt += `  Notes: ${q.notes}\n`;
-        });
-        prompt += '\n';
-    }
-
     if (plot_points?.length) {
         prompt += 'CURRENT PLOT POINTS:\n';
         plot_points.forEach((p: any) => {
@@ -134,18 +116,8 @@ export async function buildSystemPrompt(basePrompt: string, sessionData: any, ch
         prompt += '\n';
     }
 
-    if (history?.length) {
-        prompt += 'SESSION HISTORY:\n';
-        history.forEach((h: any) => {
-            prompt += `- ${new Date(h.timestamp).toISOString()}: ${h.summary}`;
-            if (h.notes) prompt += ` (${h.notes})`;
-            prompt += '\n';
-        });
-        prompt += '\n';
-    }
-
     // Optional fallback to lorebook if session is empty
-    if ((!characters?.length && !places?.length && !quests?.length) && lorebookData) {
+    if ((!characters?.length && !places?.length) && lorebookData) {
         prompt += `You may reference this lorebook if needed: "${lorebookData.lorebook.name}"\n`;
         prompt += `${lorebookData.lorebook.description}\n`;
     }

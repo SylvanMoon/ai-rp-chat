@@ -27,7 +27,7 @@ export async function POST({ request }) {
 
         // Only fetch lorebook if session is empty
         let lorebookData = null;
-        if (chatId && !sessionData.characters.length && !sessionData.places.length && !sessionData.quests.length) {
+        if (chatId && !sessionData.characters.length && !sessionData.places.length) {
             lorebookData = await getLorebookData(chatId);
         }
 

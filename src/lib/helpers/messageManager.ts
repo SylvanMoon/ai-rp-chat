@@ -41,28 +41,26 @@ export async function saveMessage(
 // ------------------------------
 // delete a chat message
 // ------------------------------
-// export async function deleteMessage(index: number, messages: Message[], setMessages: (messages: Message[]) => void) { const msg = messages[index]; if (msg.id) { const { error } = await supabase .from('messages') .delete() .eq('id', msg.id); if (error) console.error('Error deleting message:', error); } const newMessages = [...messages]; newMessages.splice(index, 1); setMessages(newMessages); }
-
 export async function deleteMessage(
   chatId: string,
-  index: number,
+  messageId: number,
   messages: Message[],
   setMessages: (messages: Message[]) => void
 ) {
-  const msg = messages[index];
-  if (!msg) return;
+  const msgIndex = messages.findIndex(msg => msg.id === messageId);
+  if (msgIndex === -1) return;
+
+  const msg = messages[msgIndex];
 
   // Delete from Supabase
-  if (msg.id) {
-    const { error } = await supabase
-      .from('messages')
-      .delete()
-      .eq('id', msg.id);
+  const { error } = await supabase
+    .from('messages')
+    .delete()
+    .eq('id', messageId);
 
-    if (error) {
-      console.error('Error deleting message:', error);
-      return;
-    }
+  if (error) {
+    console.error('Error deleting message:', error);
+    return;
   }
 
   // Decrement assistant_turn if assistant message
@@ -73,7 +71,7 @@ export async function deleteMessage(
 
   // Update local state
   const newMessages = [...messages];
-  newMessages.splice(index, 1);
+  newMessages.splice(msgIndex, 1);
   setMessages(newMessages);
 }
 
@@ -165,6 +163,18 @@ export async function sendMessage(input: string, chatId: string | null, messages
 		});
 
 		const data = await res.json();
+
+		// Fetch the id of the newly saved user message
+		const { data: lastUser } = await supabase
+			.from('messages')
+			.select('id')
+			.eq('chat_id', chatId)
+			.eq('role', 'user')
+			.order('created_at', { ascending: false })
+			.limit(1);
+		if (lastUser && lastUser[0]) {
+			newMessages[newMessages.length - 1].id = lastUser[0].id;
+		}
 
 		const assistantMessage: Message = { role: 'assistant' as const, content: data.reply, variants: [data.reply], selectedVariant: 0 };
 		setMessages([...newMessages, assistantMessage]);

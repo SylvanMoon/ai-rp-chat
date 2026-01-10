@@ -1,6 +1,6 @@
 export const TURN_THRESHOLDS = {
   plot_point: {
-    fade_after: 5,
+    inactive_after: 5,
     archive_after: 10
   },
   character: {
@@ -8,7 +8,8 @@ export const TURN_THRESHOLDS = {
     archive_after: 30
   },
   place: {
-    archive_after: 20
+    inactive_after: 20,
+    archive_after: 40
   }
 };
 
@@ -16,3 +17,5 @@ export const PROMOTION_RULES = {
   reinforcement_required: 2,
   importance_required: 3
 };
+
+

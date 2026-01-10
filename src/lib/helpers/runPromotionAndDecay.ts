@@ -7,8 +7,8 @@ import { updateSessionPlotPoint } from './sessionPlotPointsManager';
 import { turnsSince } from './turnsSince';
 
 export async function runPromotionAndDecay(chatId: string, currentAssistantTurn: number) {
- 
-    // ---------------- Plot Points ----------------
+
+  // ---------------- Plot Points ----------------
   {
     const { data: plotPoints } = await supabase
       .from("session_plot_points")
@@ -17,16 +17,26 @@ export async function runPromotionAndDecay(chatId: string, currentAssistantTurn:
       .not("state", "in", '("resolved","archived")');
 
     for (const pp of plotPoints ?? []) {
-      const turnsIdle = turnsSince(pp.last_mentioned_turn, currentAssistantTurn);
+      const turnsIdle = pp.last_mentioned_turn == null
+        ? 0
+        : turnsSince(pp.last_mentioned_turn, currentAssistantTurn);
 
-      if (shouldPromotePlotPoint(pp)) {
-        await updateSessionPlotPoint(pp.id, { state: "active" });
-        continue;
+      const promote = shouldPromotePlotPoint(pp);
+      const decayed = decayPlotPoint(pp, turnsIdle);
+
+      const updatePayload: any = {};
+
+      if (promote && pp.state !== "active") {
+        updatePayload.state = "active";
+        console.log(`[PROMOTE] Plot Point: ${pp.title}`);
+      } 
+      else if (decayed && pp.state !== decayed) {
+        updatePayload.state = decayed;
+        console.log(`[DECAY] Plot Point: ${pp.title} → ${decayed}`);
       }
 
-      const decayed = decayPlotPoint(pp, turnsIdle);
-      if (decayed) {
-        await updateSessionPlotPoint(pp.id, { state: decayed });
+      if (Object.keys(updatePayload).length > 0) {
+        await updateSessionPlotPoint(pp.id, updatePayload);
       }
     }
   }
@@ -40,16 +50,26 @@ export async function runPromotionAndDecay(chatId: string, currentAssistantTurn:
       .not("state", "in", '("archived")');
 
     for (const c of characters ?? []) {
-      const turnsIdle = turnsSince(c.last_mentioned_turn, currentAssistantTurn);
+      const turnsIdle = c.last_mentioned_turn == null
+        ? 0
+        : turnsSince(c.last_mentioned_turn, currentAssistantTurn);
 
-      if (shouldPromoteCharacter(c)) {
-        await updateSessionCharacter(c.id, { state: "active" });
-        continue;
+      const promote = shouldPromoteCharacter(c);
+      const decayed = decayCharacter(c, turnsIdle);
+
+      const updatePayload: any = {};
+
+      if (promote && c.state !== "active") {
+        updatePayload.state = "active";
+        console.log(`[PROMOTE] Character: ${c.name}`);
+      } 
+      else if (decayed && c.state !== decayed) {
+        updatePayload.state = decayed;
+        console.log(`[DECAY] Character: ${c.name} → ${decayed}`);
       }
 
-      const decayed = decayCharacter(c, turnsIdle);
-      if (decayed) {
-        await updateSessionCharacter(c.id, { state: decayed });
+      if (Object.keys(updatePayload).length > 0) {
+        await updateSessionCharacter(c.id, updatePayload);
       }
     }
   }
@@ -63,16 +83,26 @@ export async function runPromotionAndDecay(chatId: string, currentAssistantTurn:
       .not("state", "in", '("archived")');
 
     for (const p of places ?? []) {
-      const turnsIdle = turnsSince(p.last_mentioned_turn, currentAssistantTurn);
+      const turnsIdle = p.last_mentioned_turn == null
+        ? 0
+        : turnsSince(p.last_mentioned_turn, currentAssistantTurn);
 
-      if (shouldPromotePlace(p)) {
-        await updateSessionPlace(p.id, { state: "active" });
-        continue;
+      const promote = shouldPromotePlace(p);
+      const decayed = decayPlace(p, turnsIdle);
+
+      const updatePayload: any = {};
+
+      if (promote && p.state !== "active") {
+        updatePayload.state = "active";
+        console.log(`[PROMOTE] Place: ${p.name}`);
+      } 
+      else if (decayed && p.state !== decayed) {
+        updatePayload.state = decayed;
+        console.log(`[DECAY] Place: ${p.name} → ${decayed}`);
       }
 
-      const decayed = decayPlace(p, turnsIdle);
-      if (decayed) {
-        await updateSessionPlace(p.id, { state: decayed });
+      if (Object.keys(updatePayload).length > 0) {
+        await updateSessionPlace(p.id, updatePayload);
       }
     }
   }

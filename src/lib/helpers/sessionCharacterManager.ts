@@ -9,7 +9,8 @@ export interface SessionCharacter {
   state: "candidate" | "active" | "inactive" | "archived";
   importance: number;
   reinforcement_count: number;
-  last_mentioned: string; // ISO string from Supabase
+  last_mentioned: string;        // timestamptz
+  last_mentioned_turn?: number | null;
 }
 
 //---------------------------------
@@ -25,7 +26,8 @@ export async function addSessionCharacter(
     state?: "candidate" | "active" | "inactive" | "archived";
     importance?: number;
     reinforcement_count?: number;
-    last_mentioned: Date;
+    last_mentioned?: Date;
+    last_mentioned_turn?: number | null;
   }
 ) {
   const { error } = await supabase
@@ -38,7 +40,8 @@ export async function addSessionCharacter(
       state: payload.state ?? "candidate",
       importance: payload.importance ?? 1,
       reinforcement_count: payload.reinforcement_count ?? 1,
-      last_mentioned: payload.last_mentioned,
+      last_mentioned: payload.last_mentioned ?? new Date(),
+      last_mentioned_turn: payload.last_mentioned_turn ?? null
     });
 
   if (error) throw error;
@@ -55,6 +58,8 @@ export async function updateSessionCharacter(
     importance: number;
     reinforcement_count: number;
     last_mentioned: Date;
+    last_mentioned_turn: number | null;
+    description: string | null;
   }>
 ) {
   const updatePayload: any = {};
@@ -67,6 +72,14 @@ export async function updateSessionCharacter(
   if (updates.last_mentioned !== undefined) {
     updatePayload.last_mentioned = updates.last_mentioned;
   }
+  if (updates.last_mentioned_turn !== undefined) {
+    updatePayload.last_mentioned_turn = updates.last_mentioned_turn;
+  }
+  if (updates.description !== undefined) {
+    updatePayload.description = updates.description;
+  }
+
+  if (Object.keys(updatePayload).length === 0) return;
 
   const { error } = await supabase
     .from("session_characters")
@@ -103,8 +116,5 @@ export async function getSessionCharacter(
     throw error;
   }
 
-  return data;
+  return data as SessionCharacter | null;
 }
-
-
-

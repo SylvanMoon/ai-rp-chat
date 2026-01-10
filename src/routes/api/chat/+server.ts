@@ -35,7 +35,7 @@ export async function POST({ request }) {
             const recentMessages = await getMessagesSinceLastUser(chatId); // include user + AI
             console.log("--------------------------------------")
             console.log("Recent messages for ephemeral extraction:", recentMessages);
-            const ephemeralData = await extractEphemeralEntitiesLLM(recentMessages);
+            const ephemeralData = await extractEphemeralEntitiesLLM(recentMessages, chatId);
 
             if (ephemeralData) {
                 await syncEphemeralEntitiesToSession(chatId, ephemeralData);
@@ -51,27 +51,26 @@ export async function POST({ request }) {
                 await runPromotionAndDecay(chatId, currentAssistantTurn);
             }
 
-            // await insertEphemeralData(chatId, entities, assistantTurn);
-
-            // await evaluateSessionMemory(chatId, assistantTurn);
-            // await runPromotionAndDecay(chatId, assistantTurn)
-
             // ------------------------------
             // Check if we should summarize
             // ------------------------------
-            const messagesSinceLastHistory = await getMessagesSinceLastHistory(chatId);
-            if (messagesSinceLastHistory.length >= SUMMARY_THRESHOLD) {
-                console.log("--------------------------------------")
-                console.log(`Generating session summary for ${messagesSinceLastHistory.length} messages`);
-                await summarizeSessionHistory(chatId, messagesSinceLastHistory);
-            }
+            // const messagesSinceLastHistory = await getMessagesSinceLastHistory(chatId);
+            // if (messagesSinceLastHistory.length >= SUMMARY_THRESHOLD) {
+            //     console.log("--------------------------------------")
+            //     console.log(`Generating session summary for ${messagesSinceLastHistory.length} messages`);
+            //     await summarizeSessionHistory(chatId, messagesSinceLastHistory);
+            // }
         }
 
         // Get session snapshot for system prompt
         const sessionLoreData = await getSessionLoreSnapshot(chatId);
+        console.log("--------------------------------------")
+        console.log("sessionLoreData:", sessionLoreData);
 
-        // Build enhanced system prompt
+
         const enhancedMessages = [...messages];
+        console.log("--------------------------------------")
+        console.log("enhancedMessages:", enhancedMessages);
         if (enhancedMessages[0].role === 'system') {
             enhancedMessages[0].content = await buildSystemPrompt(enhancedMessages[0].content, sessionLoreData, chatId, null);
         }
@@ -84,7 +83,7 @@ export async function POST({ request }) {
         const completion = await client.chat.completions.create({
             model: "deepseek-ai/deepseek-r1",
             messages: enhancedMessages,
-            temperature: 1.8,
+            temperature: 0.9,
             top_p: 0.98,
             max_tokens: 2048,
             frequency_penalty: 0.15,

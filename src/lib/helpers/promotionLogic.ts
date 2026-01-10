@@ -1,4 +1,4 @@
-import { PROMOTION_RULES } from "$lib/constants/constants";
+import { PROMOTION_RULES } from "$lib/constants/promotion";
 
 export function shouldPromotePlotPoint(pp: any) {
   return (

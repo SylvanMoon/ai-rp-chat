@@ -5,10 +5,11 @@ export interface SessionPlotPoint {
   chat_id: string;
   title: string;
   description?: string | null;
-  state: "candidate" | "active" | "inactive" | "fading" | "archived";
+  state: "candidate" | "active" | "fading" | "archived";
   importance: number;
   reinforcement_count: number;
   last_mentioned: string;
+  last_mentioned_turn: number | null;
 }
 
 //---------------------------------
@@ -20,10 +21,11 @@ export async function addSessionPlotPoint(
   payload: {
     title: string;
     description?: string;
-    state?: "candidate" | "active" | "inactive" | "fading" | "archived";
+    state?: "candidate" | "active" | "fading" | "archived";
     importance?: number;
     reinforcement_count?: number;
     last_mentioned?: Date;
+    last_mentioned_turn?: number;
   }
 ) {
   const { error } = await supabase
@@ -35,7 +37,8 @@ export async function addSessionPlotPoint(
       state: payload.state ?? "candidate",
       importance: payload.importance ?? 1,
       reinforcement_count: payload.reinforcement_count ?? 1,
-      last_mentioned: payload.last_mentioned ?? new Date()
+      last_mentioned: payload.last_mentioned ?? new Date(),
+      last_mentioned_turn: payload.last_mentioned_turn ?? null
     });
 
   if (error) throw error;
@@ -48,19 +51,24 @@ export async function addSessionPlotPoint(
 export async function updateSessionPlotPoint(
   id: string,
   updates: Partial<{
-    state: "candidate" | "active" | "inactive" | "fading" | "archived";
+    state: "candidate" | "active" | "fading" | "archived";
     importance: number;
     reinforcement_count: number;
     last_mentioned: Date;
+    last_mentioned_turn: number;
     description: string;
   }>
 ) {
+  const updatePayload: any = { ...updates };
+
+  // Only touch timestamps if something actually changed
+  if (!updates.last_mentioned) {
+    updatePayload.last_mentioned = new Date();
+  }
+
   const { error } = await supabase
     .from("session_plot_points")
-    .update({
-      ...updates,
-      last_mentioned: updates.last_mentioned ?? new Date()
-    })
+    .update(updatePayload)
     .eq("id", id);
 
   if (error) throw error;
@@ -88,4 +96,3 @@ export async function getSessionPlotPoint(
 
   return data as SessionPlotPoint | null;
 }
-

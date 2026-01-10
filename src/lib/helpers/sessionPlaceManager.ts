@@ -9,7 +9,8 @@ export interface SessionPlace {
   state: "candidate" | "active" | "inactive" | "archived";
   importance: number;
   reinforcement_count: number;
-  last_mentioned: string; // timestamptz
+  last_mentioned: string;       // timestamptz
+  last_mentioned_turn?: number | null;
 }
 
 //---------------------------------
@@ -25,7 +26,8 @@ export async function addSessionPlace(
     state?: "candidate" | "active" | "inactive" | "archived";
     importance?: number;
     reinforcement_count?: number;
-    last_mentioned: Date;
+    last_mentioned?: Date;
+    last_mentioned_turn?: number | null;
   }
 ) {
   const { error } = await supabase
@@ -38,11 +40,13 @@ export async function addSessionPlace(
       state: payload.state ?? "candidate",
       importance: payload.importance ?? 1,
       reinforcement_count: payload.reinforcement_count ?? 1,
-      last_mentioned: payload.last_mentioned
+      last_mentioned: payload.last_mentioned ?? new Date(),
+      last_mentioned_turn: payload.last_mentioned_turn ?? null
     });
 
   if (error) throw error;
 }
+
 //---------------------------------
 // Update Session Place
 //---------------------------------
@@ -54,6 +58,7 @@ export async function updateSessionPlace(
     importance: number;
     reinforcement_count: number;
     last_mentioned: Date;
+    last_mentioned_turn: number | null;
   }>
 ) {
   const updatePayload: any = {};
@@ -65,6 +70,9 @@ export async function updateSessionPlace(
   }
   if (updates.last_mentioned !== undefined) {
     updatePayload.last_mentioned = updates.last_mentioned;
+  }
+  if (updates.last_mentioned_turn !== undefined) {
+    updatePayload.last_mentioned_turn = updates.last_mentioned_turn;
   }
 
   if (Object.keys(updatePayload).length === 0) return;
@@ -104,6 +112,7 @@ export async function getSessionPlace(
     throw error;
   }
 
-  return data;
+  return data as SessionPlace | null;
 }
+
 
