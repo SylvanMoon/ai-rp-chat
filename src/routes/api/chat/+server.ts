@@ -1,13 +1,10 @@
 import { json } from "@sveltejs/kit";
-import { client } from '$lib/server/openaiClient';
+import { generateResponse } from '$lib/server/openaiClient';
 import { supabase } from '$lib/client/supabaseClient';
 import { buildSystemPrompt, getSessionLoreSnapshot } from "$lib/helpers/lorebookManager";
 import { extractEphemeralEntitiesLLM, syncEphemeralEntitiesToSession } from "$lib/helpers/extractAndInsertEphemeralData";
-import { getMessagesSinceLastHistory, getMessagesSinceLastUser, saveMessage } from "$lib/helpers/messageManager";
-import { summarizeSessionHistory } from "$lib/helpers/sessionManager";
+import { getMessagesSinceLastUser, saveMessage } from "$lib/helpers/messageManager";
 import { runPromotionAndDecay } from "$lib/helpers/runPromotionAndDecay";
-
-const SUMMARY_THRESHOLD = 20;
 
 // ------------------------------
 // POST handler
@@ -50,16 +47,6 @@ export async function POST({ request }) {
 
                 await runPromotionAndDecay(chatId, currentAssistantTurn);
             }
-
-            // ------------------------------
-            // Check if we should summarize
-            // ------------------------------
-            // const messagesSinceLastHistory = await getMessagesSinceLastHistory(chatId);
-            // if (messagesSinceLastHistory.length >= SUMMARY_THRESHOLD) {
-            //     console.log("--------------------------------------")
-            //     console.log(`Generating session summary for ${messagesSinceLastHistory.length} messages`);
-            //     await summarizeSessionHistory(chatId, messagesSinceLastHistory);
-            // }
         }
 
         // Get session snapshot for system prompt
@@ -71,18 +58,14 @@ export async function POST({ request }) {
         const enhancedMessages = [...messages];
         console.log("--------------------------------------")
         console.log("enhancedMessages:", enhancedMessages);
-        if (enhancedMessages[0].role === 'system') {
-            enhancedMessages[0].content = await buildSystemPrompt(enhancedMessages[0].content, sessionLoreData, chatId, null);
-        }
+        enhancedMessages[0].content = await buildSystemPrompt(enhancedMessages[0].content, sessionLoreData, chatId);
 
         // Log the full prompt being sent to LLM
         console.log("--------------------------------------")
         console.log("Full prompt being sent to LLM:", JSON.stringify(enhancedMessages, null, 2));
 
         // Generate AI response
-        const completion = await client.chat.completions.create({
-            model: "deepseek-ai/deepseek-r1",
-            messages: enhancedMessages,
+        const completion = await generateResponse(enhancedMessages, {
             temperature: 0.9,
             top_p: 0.98,
             max_tokens: 2048,

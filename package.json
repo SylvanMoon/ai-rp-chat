@@ -41,6 +41,7 @@
 		"vitest-browser-svelte": "^2.0.1"
 	},
 	"dependencies": {
+		"@google/generative-ai": "^0.24.1",
 		"@mdi/js": "^7.4.47",
 		"@supabase/supabase-js": "^2.89.0",
 		"@types/marked": "^5.0.2",

@@ -26,15 +26,15 @@ export async function POST({ request }) {
         };
 
         // Only fetch lorebook if session is empty
-        let lorebookData = null;
-        if (chatId && !sessionData.characters.length && !sessionData.places.length) {
-            lorebookData = await getLorebookData(chatId);
-        }
+        // let lorebookData = null;
+        // if (chatId && !sessionData.characters.length && !sessionData.places.length) {
+        //     lorebookData = await getLorebookData(chatId);
+        // }
 
         // Build system prompt
         const enhancedMessages = [...messages];
         if (enhancedMessages[0].role === 'system') {
-            enhancedMessages[0].content = await buildSystemPrompt(enhancedMessages[0].content, sessionData, chatId, lorebookData);
+            enhancedMessages[0].content = await buildSystemPrompt(enhancedMessages[0].content, sessionData, chatId);
         }
 
         // Generate AI response

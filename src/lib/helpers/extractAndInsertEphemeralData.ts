@@ -1,7 +1,7 @@
 // ------------------------------
 // Helper: Extract ephemeral entities using LLM
 
-import { client } from "$lib/server/openaiClient";
+import { generateResponse } from "$lib/server/openaiClient";
 import { supabase } from '$lib/client/supabaseClient';
 
 export type SessionCharacter = { id?: string; name: string; description?: string | null };
@@ -13,104 +13,6 @@ type ExtractedEntities = {
     places?: { name: string; description?: string | null }[];
     plot_points?: { title: string; description?: string | null }[];
 };
-
-// ------------------------------
-// export async function extractEphemeralEntitiesLLM(recentMessages: { role: string; content: string }[]) {
-//     if (!recentMessages.length) return null;
-
-//     // Build a single string for context
-//     const conversation = recentMessages
-//         .map(m => `${m.role.toUpperCase()}: ${m.content}`)
-//         .join('\n');
-
-//     const systemPrompt = `
-// You are a Game Master assistant.
-
-// Your task is to extract **all new ephemeral entities** mentioned in the conversation.
-
-// Ephemeral entities include:
-
-// - Characters:
-//   Named individuals introduced for the first time.
-//   Include name and a brief description only if explicitly stated.
-
-// - Places:
-//   Named locations introduced for the first time.
-
-// - Plot points:
-//   Ongoing story elements that persist beyond the current scene.
-//   Include unresolved conflicts, secrets, plans, or threats that would still matter later.
-
-// IMPORTANT:
-// Only extract entities that are NEW and not already present in the session.
-// Output JSON only, in this exact format:
-// {
-//   "characters": [{"name": "...", "description": "..."}],
-//   "places": [{"name": "...", "description": "..."}],
-//   "plot_points": [{"title": "...", "description": "..."}],
-// }
-
-// Examples:
-// - If someone says "I meet a mysterious elf named Elara in the tavern", extract character: {"name": "Elara", "description": "mysterious elf"}
-// - If someone mentions "the ancient ruins of Eldoria", extract place: {"name": "Eldoria", "description": "ancient ruins"}
-// - If there's a quest to "find the lost artifact", extract plot point: {"title": "Find the Lost Artifact", "description": "Locate and retrieve the lost artifact"}
-
-// Do not output explanations, commentary, or plain text.
-// `;
-
-//     let reply = '';
-//     try {
-//         const completion = await client.chat.completions.create({
-//             model: "deepseek-ai/deepseek-r1",
-//             messages: [
-//                 { role: "system", content: systemPrompt },
-//                 { role: "user", content: conversation }
-//             ],
-//             temperature: 0,
-//             max_tokens: 1024
-//         });
-
-//         reply = completion.choices[0].message.content ?? '';
-//         console.log("--------------------------------------")
-//         console.log("Raw LLM response for ephemeral extraction:", reply);
-
-//         // Extract JSON from markdown code block if present
-//         let jsonString = reply.trim();
-
-//         // Try to extract JSON from code blocks
-//         const jsonBlockMatch = jsonString.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
-//         if (jsonBlockMatch) {
-//             jsonString = jsonBlockMatch[1];
-//         } else if (jsonString.startsWith('```')) {
-//             // Remove any code block markers
-//             jsonString = jsonString.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
-//         }
-
-//         // Try to find JSON object in the response
-//         const jsonMatch = jsonString.match(/\{[\s\S]*\}/);
-//         if (jsonMatch) {
-//             jsonString = jsonMatch[0];
-//         }
-
-//         // Clean up and validate we have content
-//         jsonString = jsonString.trim();
-
-//         if (!jsonString || jsonString.length === 0) {
-//             console.log("No JSON found in LLM response");
-//             return null;
-//         }
-
-//         // Attempt to parse JSON
-//         const parsed = JSON.parse(jsonString);
-//         console.log("--------------------------------------")
-//         console.log("Successfully parsed ephemeral entities:", parsed);
-//         return parsed;
-//     } catch (err) {
-//         console.error("Failed to extract ephemeral entities:", err);
-//         console.error("Attempted to parse:", reply?.substring(0, 500));
-//         return null;
-//     }
-// }
 
 
 export async function extractEphemeralEntitiesLLM(
@@ -164,40 +66,52 @@ Output JSON only in this exact format:
   "plot_points": [{"title": "...", "description": "..."}]
 }
 
-Do not output explanations, commentary, or plain text.
+Do not output explanations, commentary, or plain text. Ensure the JSON is complete and valid.
 `;
+
+    console.log("--------------------------------------");
+    console.log("Ephemeral Extraction System Prompt:", systemPrompt);
 
     let reply = "";
 
     try {
         // 5️⃣ Call LLM
-        const completion = await client.chat.completions.create({
-            model: "deepseek-ai/deepseek-r1",
-            messages: [
-                { role: "system", content: systemPrompt },
-                { role: "user", content: conversation }
-            ],
+        const completion = await generateResponse([
+            { role: "system", content: systemPrompt },
+            { role: "user", content: conversation }
+        ], {
             temperature: 0,
-            max_tokens: 1024
+            max_tokens: 2048
         });
 
         reply = completion.choices[0].message.content ?? "";
+        console.log("--------------------------------------");
         console.log("Raw LLM response:", reply);
 
-        // 6️⃣ Normalize output (strip backticks / code fences)
-        let cleaned = reply
-            .replace(/```json/gi, "")
-            .replace(/```/g, "")
-            .replace(/`/g, "")
-            .trim();
+    } catch (err) {
+        console.error("LLM extraction call failed:", err);
+        return null;
+    }
 
-        // 7️⃣ Extract JSON object
-        const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+    // 6️⃣ Normalize output (strip backticks / code fences)
+    let cleaned = reply
+        .replace(/```json/gi, "")
+        .replace(/```json|```/gi, "")
+        .replace(/```/g, "")
+        .replace(/`/g, "")
+        .trim();
+    console.log("--------------------------------------");
+    console.log("Cleaned LLM response:", cleaned);
 
-        if (!jsonMatch) {
-            console.warn("No JSON detected. Returning empty entities.");
-            return { characters: [], places: [], plot_points: [] };
-        }
+    // 7️⃣ Extract JSON object
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+
+    if (!jsonMatch) {
+        console.warn("No JSON detected. Returning empty entities.");
+        return { characters: [], places: [], plot_points: [] };
+    }
+
+    try {
 
         const parsed = JSON.parse(jsonMatch[0]) as {
             characters?: { name?: string; description?: string }[];
@@ -230,12 +144,12 @@ Do not output explanations, commentary, or plain text.
         };
 
     } catch (err) {
-        console.error("Failed to extract ephemeral entities:", err);
-        console.error("Attempted parse:", reply?.substring(0, 500));
+        console.error("Failed to parse extracted JSON");
+        console.error("Raw LLM response:", reply);
+        console.error("Cleaned JSON:", cleaned);
         return null;
     }
 }
-
 
 //-------------------------------
 // Sync extracted ephemeral entities to session
@@ -356,96 +270,6 @@ export async function syncEphemeralEntitiesToSession(
     }
 }
 
-
-// //-------------------------------
-// // Insert extracted ephemeral data into session
-// //-------------------------------
-// export async function insertEphemeralData(chatId: string, data: any) {
-//     if (!data) return;
-
-//     // ---------------- Characters ----------------
-//     if (data.characters?.length) {
-//         for (const c of data.characters) {
-//             try {
-//                 // Check if character already exists in session
-//                 const existing = await getSessionCharacter(chatId, c.name);
-//                 if (existing) {
-//                     // Reinforce
-//                     await updateSessionCharacter(existing.id, {
-//                         reinforcement_count: existing.reinforcement_count + 1,
-//                         last_mentioned: new Date()
-//                     });
-//                 } else {
-//                     // Insert as candidate
-//                     await addSessionCharacter(chatId, {
-//                         character_id: c.character_id ?? null,
-//                         notes: c.description ?? '',
-//                         state: 'candidate',
-//                         reinforcement_count: 1,
-//                         importance: 1,
-//                         last_mentioned_at: new Date(),
-//                         introduced_at: new Date()
-//                     });
-//                 }
-//             } catch (err) {
-//                 console.error("Error inserting character:", err);
-//             }
-//         }
-//     }
-
-//     // ---------------- Places ----------------
-//     if (data.places?.length) {
-//         for (const p of data.places) {
-//             try {
-//                 const existing = await getSessionPlace(chatId, p.name);
-//                 if (existing) {
-//                     await updateSessionPlace(existing.id, {
-//                         reinforcement_count: existing.reinforcement_count + 1,
-//                         last_mentioned: new Date()
-//                     });
-//                 } else {
-//                     await addSessionPlace(chatId, {
-//                         notes: p.description ?? '',
-//                         state: 'candidate',
-//                         reinforcement_count: 1,
-//                         importance: 1,
-//                         last_mentioned_at: new Date(),
-//                         introduced_at: new Date()
-//                     });
-//                 }
-//             } catch (err) {
-//                 console.error("Error inserting place:", err);
-//             }
-//         }
-//     }
-
-//     // ---------------- Plot Points ----------------
-//     if (data.plot_points?.length) {
-//         for (const pp of data.plot_points) {
-//             try {
-//                 const existing = await getSessionPlotPoint(chatId, pp.notes);
-//                 if (existing) {
-//                     await updateSessionPlotPoint(existing.id, {
-//                         reinforcement_count: existing.reinforcement_count + 1,
-//                         last_mentioned_at: new Date()
-//                     });
-//                 } else {
-//                     await addSessionPlotPoint(chatId, {
-//                         notes: pp.notes,
-//                         state: 'candidate',
-//                         reinforcement_count: 1,
-//                         importance: 1,
-//                         last_mentioned_at: new Date(),
-//                         introduced_at: new Date()
-//                     });
-//                 }
-//             } catch (err) {
-//                 console.error("Error inserting plot point:", err);
-//             }
-//         }
-//     }
-// }
-
 function normalizeName(name: string) {
     return name.toLowerCase().replace(/[^a-z]/g, "");
 }
@@ -457,3 +281,28 @@ function similarity(a: string, b: string) {
     }
     return matches / Math.max(a.length, b.length);
 }
+
+
+//     const systemPrompt = `
+// You are a Game Master assistant.
+
+// Your task is to extract **all new or updated ephemeral entities** mentioned in the conversation.
+
+// Ephemeral entities include:
+
+// - Characters: named individuals introduced for the first time, or existing characters with new information (renames, revealed identities, new roles, etc.)
+// - Places: named locations introduced for the first time, or existing places with new details
+// - Plot points: ongoing story elements (unresolved conflicts, secrets, plans, or threats), including updates to existing plot points
+
+// Existing entities (do not duplicate unless new info is present):
+// ${existingDataJson}
+
+// Output JSON only in this exact format:
+// {
+//   "characters": [{"name": "...", "description": "..."}],
+//   "places": [{"name": "...", "description": "..."}],
+//   "plot_points": [{"title": "...", "description": "..."}]
+// }
+
+// Do not output explanations, commentary, or plain text.
+// `;

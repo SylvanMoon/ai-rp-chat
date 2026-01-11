@@ -1,4 +1,4 @@
-import { client } from "$lib/server/openaiClient";
+import { generateResponse } from "$lib/server/openaiClient";
 import type { SessionCharacter } from "./sessionCharacterManager";
 import type { SessionPlace } from "./sessionPlaceManager";
 import type { SessionPlotPoint } from "./sessionPlotPointsManager";
@@ -54,12 +54,10 @@ Output JSON only:
 `;
 
     try {
-        const completion = await client.chat.completions.create({
-            model: 'deepseek-ai/deepseek-r1',
-            messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: conversationText }
-            ],
+        const completion = await generateResponse([
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: conversationText }
+        ], {
             temperature: 0,
             max_tokens: 512
         });
