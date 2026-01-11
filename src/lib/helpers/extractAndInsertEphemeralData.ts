@@ -156,7 +156,8 @@ Do not output explanations, commentary, or plain text. Ensure the JSON is comple
 //-------------------------------
 export async function syncEphemeralEntitiesToSession(
     chatId: string,
-    extracted: ExtractedEntities
+    extracted: ExtractedEntities,
+    currentAssistantTurn: number
 ) {
     const now = new Date().toISOString();
 
@@ -185,7 +186,8 @@ export async function syncEphemeralEntitiesToSession(
                     .update({
                         description: char.description,
                         reinforcement_count: (existing.reinforcement_count ?? 1) + 1,
-                        last_mentioned: now
+                        last_mentioned: now,
+                        last_mentioned_turn: currentAssistantTurn
                     })
                     .eq("id", existing.id);
             } else {
@@ -196,7 +198,8 @@ export async function syncEphemeralEntitiesToSession(
                     state: "candidate",
                     importance: 1,
                     reinforcement_count: 1,
-                    last_mentioned: now
+                    last_mentioned: now,
+                    last_mentioned_turn: currentAssistantTurn
                 });
             }
         }
@@ -219,7 +222,8 @@ export async function syncEphemeralEntitiesToSession(
                     .update({
                         description: place.description,
                         reinforcement_count: (existing.reinforcement_count ?? 1) + 1,
-                        last_mentioned: now
+                        last_mentioned: now,
+                        last_mentioned_turn: currentAssistantTurn
                     })
                     .eq("id", existing.id);
             } else {
@@ -230,7 +234,8 @@ export async function syncEphemeralEntitiesToSession(
                     state: "candidate",
                     importance: 1,
                     reinforcement_count: 1,
-                    last_mentioned: now
+                    last_mentioned: now,
+                    last_mentioned_turn: currentAssistantTurn
                 });
             }
         }
@@ -252,7 +257,8 @@ export async function syncEphemeralEntitiesToSession(
                     .update({
                         description: plot.description,
                         reinforcement_count: (existing.reinforcement_count ?? 1) + 1,
-                        last_mentioned: now
+                        last_mentioned: now,
+                        last_mentioned_turn: currentAssistantTurn
                     })
                     .eq("id", existing.id);
             } else {
@@ -263,7 +269,8 @@ export async function syncEphemeralEntitiesToSession(
                     state: "candidate",
                     importance: 1,
                     reinforcement_count: 1,
-                    last_mentioned: now
+                    last_mentioned: now,
+                    last_mentioned_turn: currentAssistantTurn
                 });
             }
         }

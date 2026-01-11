@@ -25,6 +25,14 @@ export async function POST({ request }) {
         if (userMessage.role === "user") {
             await saveMessage(chatId, "user", userMessage.content);
 
+            // Get current assistant turn
+            const { data: chat } = await supabase
+                .from("chats")
+                .select("assistant_turn")
+                .eq("id", chatId)
+                .single();
+            const currentAssistantTurn = chat?.assistant_turn ?? 0;
+
             // ------------------------------
             // Only after a user message:
             // Extract ephemeral entities from recent messages
@@ -35,15 +43,7 @@ export async function POST({ request }) {
             const ephemeralData = await extractEphemeralEntitiesLLM(recentMessages, chatId);
 
             if (ephemeralData) {
-                await syncEphemeralEntitiesToSession(chatId, ephemeralData);
-
-                // Get current assistant turn
-                const { data: chat } = await supabase
-                    .from("chats")
-                    .select("assistant_turn")
-                    .eq("id", chatId)
-                    .single();
-                const currentAssistantTurn = chat?.assistant_turn ?? 0;
+                await syncEphemeralEntitiesToSession(chatId, ephemeralData, currentAssistantTurn);
 
                 await runPromotionAndDecay(chatId, currentAssistantTurn);
             }

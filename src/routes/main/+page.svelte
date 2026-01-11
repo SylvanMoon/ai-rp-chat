@@ -5,7 +5,7 @@
 		initializeChat,
 		setChatLorebook,
 		getChatLorebook
-	} from '$lib/helpers/chatManager.';
+	} from '$lib/helpers/chatManager';
 	import { supabase } from '$lib/client/supabaseClient';
 	import { createSidebarStore } from './components/sidebar/sidebar';
 	import Sidebar from './components/sidebar/Sidebar.svelte';

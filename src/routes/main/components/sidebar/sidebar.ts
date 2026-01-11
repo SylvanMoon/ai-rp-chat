@@ -5,7 +5,7 @@ import {
 	saveChat,
 	deleteChat,
 	duplicateChat,
-} from '../../../../lib/helpers/chatManager.';
+} from '../../../../lib/helpers/chatManager';
 import { goto } from '$app/navigation';
 import { loadMessages, type Message } from '$lib/helpers/messageManager';
 
