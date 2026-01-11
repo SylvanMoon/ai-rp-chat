@@ -203,7 +203,7 @@
 								{#if editingIndex === i}
 									<textarea
 										bind:value={msg.content}
-										rows="3"
+										rows="10"
 										class="w-full p-2 rounded bg-gray-700 text-gray-100 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"
 									></textarea>
 
@@ -312,7 +312,7 @@
 					bind:value={input}
 					placeholder="Type your action..."
 					rows="2"
-					class="flex-1 p-3 rounded-lg bg-gray-700 text-gray-100 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+					class="flex-1 p-3 rounded-lg bg-gray-700 text-gray-100 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-y"
 				></textarea>
 				<button
 					onclick={() =>
