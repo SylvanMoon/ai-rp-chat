@@ -27,6 +27,10 @@ export function createSidebarStore() {
 			goto('/lorebook');
 		},
 
+		goToSession() {
+			goto('/session');
+		},
+
 		async newAdventure(onChatIdChange: (id: string | null) => void, onMessagesChange: (msgs: Message[]) => void) {
 			newAdventure(onChatIdChange, onMessagesChange);
 		},
