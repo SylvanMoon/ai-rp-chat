@@ -76,7 +76,7 @@
 				disabled={!chatId}
 				class="w-full px-4 py-2 bg-gray-700 text-white font-semibold rounded-lg hover:bg-gray-600 disabled:bg-gray-600 disabled:cursor-not-allowed transition"
 			>
-				Save Chat
+				Rename Chat
 			</button>
 			<button
 				onclick={() => {
