@@ -197,7 +197,7 @@
 						{#if msg.role !== 'system'}
 							<div
 								class="relative max-w-[70%] break-words {msg.role === 'user'
-									? 'ml-auto text-right bg-green-600 text-white rounded-bl-xl rounded-tl-xl rounded-tr-xl p-4 flex flex-col gap-2'
+									? 'ml-auto bg-green-600 text-white rounded-bl-xl rounded-tl-xl rounded-tr-xl p-4 flex flex-col gap-2'
 									: 'bg-gray-700 text-white rounded-br-xl rounded-tr-xl rounded-tl-xl p-4 flex flex-col gap-2'}"
 							>
 								{#if editingIndex === i}
@@ -253,7 +253,7 @@
 												</div>
 											{/if}
 										{:else}
-											{msg.content}
+											<Markdown content={msg.content} />
 										{/if}
 
 										<div class="flex justify-end gap-2 mt-1">
