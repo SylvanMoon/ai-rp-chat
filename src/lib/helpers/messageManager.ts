@@ -14,11 +14,19 @@ export type Message = {
 export async function saveMessage(
   chatId: string,
   role: "user" | "assistant" | "system",
-  content: string
+  content: string,
+  variants?: string[],
+  selectedVariant?: number
 ) {
+  const messageData: any = { chat_id: chatId, role, content };
+  if (role === "assistant" && variants) {
+    messageData.variants = variants;
+    messageData.selected_variant = selectedVariant || 0;
+  }
+
   const { error } = await supabase
     .from("messages")
-    .insert([{ chat_id: chatId, role, content }]);
+    .insert([messageData]);
 
   if (error) {
     console.error("Supabase saveMessage error:", error);
@@ -106,8 +114,8 @@ export async function loadMessages(chatId: string | null, setMessages: (messages
 				content: msg.content
 			};
 			if (msg.role === 'assistant') {
-				message.variants = [msg.content];
-				message.selectedVariant = 0;
+				message.variants = msg.variants || [msg.content];
+				message.selectedVariant = msg.selected_variant ?? 0;
 			}
 			return message;
 		})
@@ -133,9 +141,14 @@ export async function saveEdit(index: number, newContent: string, messages: Mess
 		msg.variants[variantIndex] = newContent;
 	}
 	if (msg.id) {
+		const updateData: any = { content: newContent };
+		if (msg.role === 'assistant' && msg.variants) {
+			updateData.variants = msg.variants;
+			updateData.selected_variant = msg.selectedVariant;
+		}
 		const { error } = await supabase
 			.from('messages')
-			.update({ content: newContent })
+			.update(updateData)
 			.eq('id', msg.id);
 		if (error) console.error('Error updating message:', error);
 	}
@@ -148,6 +161,22 @@ export async function saveEdit(index: number, newContent: string, messages: Mess
 //---------------------------------
 export async function sendMessage(input: string, chatId: string | null, messages: Message[], setInput: (input: string) => void, setLoading: (loading: boolean) => void, setMessages: (messages: Message[]) => void) {
 	if (!input.trim() || !chatId) return;
+
+	// Clean up variants of the last assistant message before sending
+	const lastMessage = messages[messages.length - 1];
+	if (lastMessage && lastMessage.role === 'assistant' && lastMessage.variants && lastMessage.variants.length > 1) {
+		const selectedContent = lastMessage.variants[lastMessage.selectedVariant || 0];
+		lastMessage.variants = undefined;
+		lastMessage.selectedVariant = undefined;
+		lastMessage.content = selectedContent;
+		if (lastMessage.id) {
+			const { error } = await supabase
+				.from('messages')
+				.update({ content: selectedContent, variants: null, selected_variant: null })
+				.eq('id', lastMessage.id);
+			if (error) console.error('Error cleaning up variants:', error);
+		}
+	}
 
 	const userMessage = input;
 	const newMessages = [...messages, { role: 'user' as const, content: userMessage }];
@@ -227,7 +256,7 @@ export async function regenerateMessage(index: number, chatId: string | null, me
 		if (msg.id) {
 			const { error } = await supabase
 				.from('messages')
-				.update({ content: msg.content })
+				.update({ content: msg.content, variants: msg.variants, selected_variant: msg.selectedVariant })
 				.eq('id', msg.id);
 			if (error) console.error('Error updating message:', error);
 		}
@@ -244,7 +273,7 @@ export async function regenerateMessage(index: number, chatId: string | null, me
 		if (msg.id) {
 			const { error } = await supabase
 				.from('messages')
-				.update({ content: msg.content })
+				.update({ content: msg.content, variants: msg.variants, selected_variant: msg.selectedVariant })
 				.eq('id', msg.id);
 			if (error) console.error('Error updating message:', error);
 		}
@@ -266,7 +295,7 @@ export async function selectVariant(index: number, variantIndex: number, message
 		if (msg.id) {
 			const { error } = await supabase
 				.from('messages')
-				.update({ content: msg.content })
+				.update({ content: msg.content, selected_variant: msg.selectedVariant })
 				.eq('id', msg.id);
 			if (error) console.error('Error updating message:', error);
 		}

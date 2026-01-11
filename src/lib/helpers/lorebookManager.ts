@@ -36,6 +36,9 @@ export async function getSessionLoreSnapshot(chatId: string) {
         });
     }
 
+    console.log("--------------------------------------")
+    console.log("sessionLoreData:", { characters, places, plotPoints });
+
     return {
         characters: characters ?? [],
         places: places ?? [],

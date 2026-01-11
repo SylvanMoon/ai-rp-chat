@@ -39,19 +39,19 @@
 		<div class="space-y-2">
 			<button
 				onclick={() => goto('/lorebook')}
-				class="w-full px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition"
+				class="w-full px-4 py-2 bg-gray-700 text-white font-semibold rounded-lg hover:bg-gray-600 transition"
 			>
 				Manage Lorebooks
 			</button>
 			<button
 				onclick={() => goto('/mainPrompt')}
-				class="w-full px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition"
+				class="w-full px-4 py-2 bg-gray-700 text-white font-semibold rounded-lg hover:bg-gray-600 transition"
 			>
 				Main Prompt
 			</button>
 			<button
 				onclick={() => goto('/session')}
-				class="w-full px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition"
+				class="w-full px-4 py-2 bg-gray-700 text-white font-semibold rounded-lg hover:bg-gray-600 transition"
 			>
 				Session Data
 			</button>
@@ -62,7 +62,7 @@
 						(msgs) => onMessagesChange(msgs)
 					)}
 				disabled={loading}
-				class="w-full px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed transition"
+				class="w-full px-4 py-2 bg-gradient-to-r from-green-700 to-green-900 text-white font-semibold rounded-lg hover:from-green-800 hover:to-green-950 disabled:bg-gray-600 disabled:cursor-not-allowed transition"
 			>
 				New Adventure
 			</button>
@@ -74,7 +74,7 @@
 					}
 				}}
 				disabled={!chatId}
-				class="w-full px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed transition"
+				class="w-full px-4 py-2 bg-gray-700 text-white font-semibold rounded-lg hover:bg-gray-600 disabled:bg-gray-600 disabled:cursor-not-allowed transition"
 			>
 				Save Chat
 			</button>
@@ -86,7 +86,7 @@
 					}
 				}}
 				disabled={!chatId || loading}
-				class="w-full px-4 py-2 bg-yellow-600 text-white font-semibold rounded-lg hover:bg-yellow-700 disabled:bg-gray-600 disabled:cursor-not-allowed transition"
+				class="w-full px-4 py-2 bg-gray-700 text-white font-semibold rounded-lg hover:bg-gray-600 disabled:bg-gray-600 disabled:cursor-not-allowed transition"
 			>
 				Duplicate Chat
 			</button>
@@ -96,7 +96,7 @@
 					onChatsChange(loadedChats);
 					onShowLoadChatsChange(true);
 				}}
-				class="w-full px-4 py-2 bg-purple-600 text-white font-semibold rounded-lg hover:bg-purple-700 transition"
+				class="w-full px-4 py-2 bg-gray-700 text-white font-semibold rounded-lg hover:bg-gray-600 transition"
 			>
 				Load Chats
 			</button>

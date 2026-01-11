@@ -44,6 +44,10 @@ export async function POST({ request }) {
 			);
 		}
 
+          // Log the full prompt being sent to LLM
+        console.log("--------------------------------------")
+        console.log("Full prompt being sent to LLM for regenerate:", JSON.stringify(enhancedMessages, null, 2));
+
 		// Generate AI response
 		const completion = await generateResponse(enhancedMessages, {
 			temperature: 0.9,

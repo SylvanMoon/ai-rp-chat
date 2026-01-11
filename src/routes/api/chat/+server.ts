@@ -51,9 +51,7 @@ export async function POST({ request }) {
 
         // Get session snapshot for system prompt
         const sessionLoreData = await getSessionLoreSnapshot(chatId);
-        console.log("--------------------------------------")
-        console.log("sessionLoreData:", sessionLoreData);
-
+      
 
         const enhancedMessages = [...messages];
         console.log("--------------------------------------")
@@ -81,7 +79,7 @@ export async function POST({ request }) {
         const aiReply = completion.choices[0].message.content ?? "";
 
         // Save AI response
-        await saveMessage(chatId, "assistant", aiReply);
+        await saveMessage(chatId, "assistant", aiReply, [aiReply], 0);
 
         return json({ reply: aiReply });
     } catch (err) {
