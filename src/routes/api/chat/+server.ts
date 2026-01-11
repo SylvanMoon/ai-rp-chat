@@ -66,16 +66,16 @@ export async function POST({ request }) {
 
         // Generate AI response
         const completion = await generateResponse(enhancedMessages, {
-            temperature: 0.9,
-            top_p: 0.98,
-            max_tokens: 2048,
-            frequency_penalty: 0.15,
-            presence_penalty: 0.1,
-            stop: [
-                "\nYou:",
-                "\nUser:",
-                "\n<USER>:"
-            ]
+            // temperature: 0.9,
+            // top_p: 0.98,
+            // max_tokens: 2048,
+            // frequency_penalty: 0.15,
+            // presence_penalty: 0.1,
+            // stop: [
+            //     "\nYou:",
+            //     "\nUser:",
+            //     "\n<USER>:"
+            // ]
         });
 
         const aiReply = completion.choices[0].message.content ?? "";

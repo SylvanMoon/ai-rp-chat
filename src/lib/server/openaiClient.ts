@@ -45,11 +45,11 @@ export async function generateResponse(messages: any[], options?: any) {
         return await deepseekClient.chat.completions.create({
             model: "deepseek-ai/deepseek-r1",
             messages,
-            temperature: options?.temperature || 0.9,
-            top_p: options?.top_p || 0.98,
+            temperature: options?.temperature || 0.6,
+            top_p: options?.top_p || 0.9,
             max_tokens: options?.max_tokens || 2048,
-            frequency_penalty: options?.frequency_penalty || 0.15,
-            presence_penalty: options?.presence_penalty || 0.1,
+            frequency_penalty: options?.frequency_penalty || 0,
+            presence_penalty: options?.presence_penalty || 0,
             stop: options?.stop || [
                 "\nYou:",
                 "\nUser:",

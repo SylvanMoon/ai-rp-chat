@@ -30,7 +30,20 @@
 
 	const sidebar = createSidebarStore();
 
-	// Reactive store subscriptions
+	// Auto-resize textarea action
+	function textareaAutoResize(node: HTMLTextAreaElement) {
+		const resize = () => {
+			node.style.height = 'auto';
+			node.style.height = node.scrollHeight + 'px';
+		};
+		node.addEventListener('input', resize);
+		resize(); // Set initial height
+		return {
+			destroy() {
+				node.removeEventListener('input', resize);
+			}
+		};
+	}
 	let sidebarOpen = $state(false);
 	let showLoadChats = $state(false);
 	let sidebarChats = $state<any[]>([]);
@@ -203,8 +216,9 @@
 								{#if editingIndex === i}
 									<textarea
 										bind:value={msg.content}
-										rows="10"
-										class="w-full p-2 rounded bg-gray-700 text-gray-100 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+										rows="1"
+										use:textareaAutoResize
+										class="w-full p-2 rounded bg-gray-700 text-gray-100 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
 									></textarea>
 
 									<div class="flex justify-end gap-2">

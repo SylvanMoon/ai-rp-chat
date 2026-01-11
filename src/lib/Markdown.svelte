@@ -8,4 +8,4 @@
 	export let content: string;
 </script>
 
-<div>{@html marked.parse(content)}</div>
+<div class="prose prose-invert max-w-none">{@html marked.parse(content)}</div>
